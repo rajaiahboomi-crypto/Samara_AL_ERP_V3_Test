@@ -1,0 +1,27 @@
+SAMARA CARE ERP V3.4.2 — DUPLICATE CLINICAL ALERT FIX
+
+Root cause:
+A second saveSimple function later in app.js was overriding the corrected function
+and continued generating the old short ABNORMAL_VITAL message.
+
+Fixed:
+- Every abnormal-vital path now calls one full clinical alert generator.
+- Event type becomes CRITICAL_ALERT.
+- Complete editable Critical Alert template is used.
+
+Upload:
+- app.js
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+
+Test:
+1. Upload and replace the listed files.
+2. Open /VERSION and confirm 3.4.2.
+3. Press Ctrl + Shift + R.
+4. Record a new abnormal vital sign.
+5. The newest notification must show CRITICAL_ALERT and the complete message.

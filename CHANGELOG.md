@@ -1,152 +1,163 @@
-# Changelog
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-## 3.4.2
-- Fixed a duplicate later saveSimple function that overrode the V3.4.1 clinical-alert correction.
-- All abnormal vital-sign paths now use one full Clinical Alert generator.
-- New alerts use event type CRITICAL_ALERT and the complete editable template.
-- Includes patient, observation, severity, time, room/bed and recorded-by staff.
-- No Supabase SQL changes required.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Content-Type": "application/json",
+};
 
-# Changelog
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
+}
 
-## 3.4.1
-- Fixed abnormal vital alerts to use the complete Critical Alert message template.
-- Clinical WhatsApp alerts now include patient name, observation, severity, time, room/bed and recorded-by staff.
-- Existing editable Communication Centre template is respected.
-- No Supabase SQL changes required.
+function e164(value: string): string {
+  let digits = String(value || "").replace(/\D/g, "");
+  if (digits.startsWith("0")) digits = "91" + digits.slice(1);
+  if (digits.length === 10) digits = "91" + digits;
+  return "+" + digits;
+}
 
-# Changelog
+async function twilioSend(params: {
+  sid: string;
+  token: string;
+  from: string;
+  to: string;
+  body: string;
+}) {
+  const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${params.sid}/Messages.json`;
+  const form = new URLSearchParams({
+    From: params.from,
+    To: params.to,
+    Body: params.body,
+  });
 
-## 3.4.0
-- Added Communication Centre.
-- Added editable professional message templates.
-- Added notification rules for WhatsApp and in-app delivery.
-- Added quick message cards for billing, appointments, clinical alerts, admission and discharge.
-- Added template variables and automatic patient-data replacement.
-- Added one-click WhatsApp composer and queue history.
-- Added Supabase migration 11_V34_COMMUNICATION_CENTRE.sql.
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + btoa(`${params.sid}:${params.token}`),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: form.toString(),
+  });
 
-# Changelog
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result?.message || JSON.stringify(result));
+  }
+  return result;
+}
 
-## 3.3.2
-- Added manual WhatsApp communication centre.
-- Added bill reminder, bill generated and payment received templates.
-- Added appointment reminders from Doctor Visit Notes.
-- Added admission, discharge and incident-update templates.
-- Added custom WhatsApp message composer.
-- Marks messages as Opened in WhatsApp for communication history.
-- Removed dependence on Twilio Send/Retry buttons in manual mode.
-- Existing billing transactions continue to queue bill and payment messages automatically.
-- No Supabase SQL changes required.
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "POST required" }, 405);
 
-# Changelog
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const authHeader = req.headers.get("Authorization") || "";
 
-## 3.3.1
-- Disabled saved-login persistence on browsers and installed apps.
-- Requires Login ID and password on every fresh launch.
-- Keeps normal authenticated access during the current active session.
-- No Supabase SQL changes required.
+    const caller = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userError } = await caller.auth.getUser();
+    if (userError || !userData.user) return json({ error: "Unauthorised" }, 401);
 
-# Changelog
+    const { data: profile } = await caller
+      .from("profiles")
+      .select("role,active")
+      .eq("id", userData.user.id)
+      .single();
 
-## 3.3.0
-- Replaced the long sidebar and two-panel tabs with accordion navigation.
-- Added Operations, Care, Clinical, and Quality & Records sections.
-- Only one section stays expanded at a time.
-- Preserved all V3.2 modules, including Clinical Intelligence.
-- Increased menu readability on desktop and mobile.
-- Remembers the last open navigation section.
-- No Supabase SQL changes required.
+    if (!profile?.active || !["Admin", "Manager", "Accounts"].includes(profile.role)) {
+      return json({ error: "Administrator, Manager or Accounts permission required" }, 403);
+    }
 
-# Changelog
+    const body = await req.json().catch(() => ({}));
+    const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
 
-## 3.2.3
-- Replaced the crowded sidebar with two navigation panels: Operations and Clinical.
-- Added large readable navigation text.
-- Added one-click switching between menu panels.
-- Automatically opens the correct panel when navigating.
-- Remembers the last selected panel.
-- No Supabase SQL changes required.
+    const db = createClient(supabaseUrl, serviceKey);
+    let query = db
+      .from("notification_queue")
+      .select("*")
+      .in("status", ["Pending", "Failed"])
+      .lte("scheduled_at", new Date().toISOString())
+      .order("created_at", { ascending: true })
+      .limit(25);
 
-# Changelog
+    if (ids.length) query = query.in("id", ids);
 
-## 3.2.2
-- Made the left navigation panel independently scrollable.
-- Preserved readable menu font size.
-- Kept the cloud connection footer fixed at the bottom.
-- Improved sidebar fit on smaller laptop screens.
-- No Supabase SQL changes required.
+    const { data: items, error } = await query;
+    if (error) throw error;
 
-# Changelog
+    const sid = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
+    const token = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
+    const whatsappFromRaw = Deno.env.get("TWILIO_WHATSAPP_FROM") || "";
+    const smsFromRaw = Deno.env.get("TWILIO_SMS_FROM") || "";
 
-## 3.2.1
-- Fixed blank Clinical Intelligence page caused by a page-route naming mismatch.
-- No Supabase SQL changes required.
+    if (!sid || !token) throw new Error("Twilio Account SID/Auth Token secrets are not configured");
 
-# Changelog
+    const processed = [];
 
-## 3.2.0
-- Added Morse Fall Scale with automatic scoring and risk category.
-- Added Braden pressure-ulcer risk assessment.
-- Added structured Pain Assessment.
-- Added resident Care Plans.
-- Added Doctor Visit Notes and follow-up date.
-- Added Nutrition Assessment.
-- Added Clinical Intelligence dashboard with high-risk summaries.
-- Added printable/PDF clinical assessment view.
-- Added Supabase migration 10_V32_CLINICAL_INTELLIGENCE.sql.
+    for (const item of items || []) {
+      try {
+        await db
+          .from("notification_queue")
+          .update({
+            status: "Processing",
+            attempts: Number(item.attempts || 0) + 1,
+            error_message: null,
+          })
+          .eq("id", item.id);
 
-# Changelog
+        let result;
+        if (item.channel === "WhatsApp") {
+          if (!whatsappFromRaw) throw new Error("TWILIO_WHATSAPP_FROM is not configured");
+          result = await twilioSend({
+            sid,
+            token,
+            from: whatsappFromRaw.startsWith("whatsapp:")
+              ? whatsappFromRaw
+              : `whatsapp:${e164(whatsappFromRaw)}`,
+            to: `whatsapp:${e164(item.recipient)}`,
+            body: item.message,
+          });
+        } else if (item.channel === "SMS") {
+          if (!smsFromRaw) throw new Error("TWILIO_SMS_FROM is not configured");
+          result = await twilioSend({
+            sid,
+            token,
+            from: e164(smsFromRaw),
+            to: e164(item.recipient),
+            body: item.message,
+          });
+        } else {
+          throw new Error(`Unsupported channel: ${item.channel}`);
+        }
 
-## 3.1.0
-- Added Nursing Notes with permanent staff attribution.
-- Added Shift Handover with priority and pending tasks.
-- Added Medication Administration Record (MAR).
-- Added unified Resident Timeline combining clinical, care, incident, document and billing events.
-- Added printable/PDF-friendly layouts.
-- Added Supabase migration 09_V31_CARE_TIMELINE.sql.
+        await db
+          .from("notification_queue")
+          .update({
+            status: "Sent",
+            sent_at: new Date().toISOString(),
+            provider_message_id: result.sid,
+            error_message: null,
+          })
+          .eq("id", item.id);
 
-# Changelog
+        processed.push({ id: item.id, status: "Sent", provider_message_id: result.sid });
+      } catch (itemError) {
+        const message = itemError instanceof Error ? itemError.message : String(itemError);
+        await db
+          .from("notification_queue")
+          .update({ status: "Failed", error_message: message })
+          .eq("id", item.id);
+        processed.push({ id: item.id, status: "Failed", error: message });
+      }
+    }
 
-## 2.4.0
-- Added secure Twilio WhatsApp and SMS delivery through Supabase Edge Functions.
-- Added Send Pending Now and per-message Send/Retry controls.
-- Added provider delivery status, sent timestamp and error display.
-- Kept Twilio credentials out of GitHub and browser code.
-- Added WhatsApp Sandbox support and optional Twilio SMS sender support.
-
-# Changelog
-
-## 2.3.0
-- Added Administrator-only Employee Profile popup.
-- Added employee photo capture by laptop/Windows webcam, mobile camera, or file upload.
-- Added employee certificate and document upload/viewing.
-- Added personal, employment, qualification and emergency-contact details.
-- Added profile editing and confidential access controls.
-
-# Changelog
-
-## 2.1.1
-- Fixed Add Patient form not opening.
-- Fixed Edit Patient form not opening.
-- Added missing selectWithValue form helper.
-- Retained working Documents, Profile, Payment and webcam photo actions.
-
-
-## 2.1.0
-- Fixed Add Patient, Edit and Documents buttons with robust delegated actions.
-- Added live Windows/laptop webcam capture for patient profile photographs.
-- Added centred square portrait capture and immediate Supabase upload.
-- Retained mobile camera and gallery photo options.
-
-# Samara Care ERP V2 Changelog
-
-## 2.0.0
-- Complete professional visual redesign.
-- New branded login experience.
-- Icon-based collapsible navigation.
-- Modern dashboard welcome panel and metric cards.
-- Improved patient profile sizing and mobile layout.
-- Consistent forms, tables, billing, clinical and document styling.
-- Preserves existing Supabase authentication, database and storage.
-- Updated PWA cache and realtime channel version.
+    return json({ processed });
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+});

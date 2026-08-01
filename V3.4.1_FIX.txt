@@ -1,0 +1,28 @@
+SAMARA CARE ERP V3.4.1 — FULL CLINICAL ALERT MESSAGE FIX
+
+Issue:
+Abnormal vital alerts used the old short message instead of the Communication Centre template.
+
+Fixed:
+- Uses the editable CRITICAL_ALERT template.
+- Includes patient name.
+- Includes observation and severity.
+- Includes date/time.
+- Includes room/bed.
+- Includes recorded-by staff.
+
+Upload:
+- app.js
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+
+After deployment:
+1. Press Ctrl + Shift + R.
+2. Record a new abnormal vital sign.
+3. Open Notifications.
+4. Click Open WhatsApp for the newly created alert.

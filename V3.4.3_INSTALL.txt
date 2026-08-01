@@ -1,0 +1,21 @@
+SAMARA CARE ERP V3.4.3 — MARITAL STATUS AND RESPECTFUL PREFIX
+
+1. Run in Supabase SQL Editor:
+   supabase/12_V343_MARITAL_STATUS_PREFIX.sql
+
+2. Upload updated files to Samara_AL_ERP_V3_Test.
+
+3. Press Ctrl + Shift + R after deployment.
+
+Patient Information:
+- Gender
+- Marital Status
+
+Formal message prefix:
+- Male: Shri.
+- Married female: Smt.
+- Unmarried female: Selvi.
+- Other/unspecified: no automatic prefix
+
+Existing database names are not modified.
+For existing female patients, edit the Patient record and select the correct marital status.
