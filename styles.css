@@ -286,3 +286,7 @@ textarea{width:100%;border:1px solid #cfdedb;border-radius:12px;padding:12px;fon
 .template-preview-v34{white-space:pre-line;min-width:360px;max-width:620px}
 @media(max-width:900px){.communication-cards-v34{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.communication-cards-v34{grid-template-columns:1fr}.template-preview-v34{min-width:260px}}
+
+/* V3.5 Patient Master */
+.form-grid .span-2{grid-column:span 2}
+@media(max-width:760px){.form-grid .span-2{grid-column:span 1}}

@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.5.0
+- Rebuilt the active Add Patient and Edit Patient forms.
+- Added Marital Status.
+- Added Date of Birth with automatic age calculation.
+- Added Blood Group, Occupation, Religion, Preferred Language and Nationality.
+- Added optional Aadhaar Number.
+- Added Guardian Name and Guardian Relationship.
+- Applied Shri., Smt. and Selvi. consistently in formal communications.
+- Preserved the original patient name in database records.
+- Added Supabase migration 13_V35_PATIENT_MASTER.sql.
+
+# Changelog
+
 ## 3.4.4
 - Fixed Marital Status field not appearing in the active Add Patient form.
 - Fixed Marital Status field not appearing in the active Edit Patient form.

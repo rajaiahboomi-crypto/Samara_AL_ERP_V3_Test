@@ -1,0 +1,30 @@
+SAMARA CARE ERP V3.5 — PATIENT MASTER UPGRADE
+
+1. Run in Supabase SQL Editor:
+   supabase/13_V35_PATIENT_MASTER.sql
+
+2. Upload the updated package contents to Samara_AL_ERP_V3_Test.
+
+3. After deployment:
+   - Open /VERSION and confirm 3.5.0
+   - Press Ctrl + Shift + R
+   - Open Patients → Edit
+
+New patient fields:
+- Date of Birth
+- Age
+- Gender
+- Marital Status
+- Blood Group
+- Occupation
+- Religion
+- Preferred Language
+- Nationality
+- Aadhaar Number (Optional)
+- Guardian Name
+- Guardian Relationship
+
+Formal prefixes:
+- Male: Shri.
+- Married/Widowed Female: Smt.
+- Unmarried Female: Selvi.

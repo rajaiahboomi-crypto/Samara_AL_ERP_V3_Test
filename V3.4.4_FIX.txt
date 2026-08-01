@@ -1,0 +1,20 @@
+SAMARA CARE ERP V3.4.4 — PATIENT MARITAL STATUS FORM FIX
+
+Upload and replace:
+- app.js
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No new SQL is required if you already ran:
+supabase/12_V343_MARITAL_STATUS_PREFIX.sql
+
+After deployment:
+1. Open /VERSION and confirm 3.4.4.
+2. Press Ctrl + Shift + R.
+3. Open Patients → Edit.
+4. Marital Status will appear below Gender.
+5. Save the correct status.
+6. Create a new clinical alert and test the respectful prefix.

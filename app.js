@@ -1658,3 +1658,168 @@ bindPageActions=function(){
  document.querySelectorAll('.edit-template-v34').forEach(b=>b.onclick=()=>openTemplateEditorV34(b.dataset.event));
 };
 /* ================= END V3.4 ================= */
+
+
+/* ================= V3.5 PATIENT MASTER UPGRADE ================= */
+function patientPrefixV35(p){
+  const gender=String(p?.gender||'').toLowerCase();
+  const marital=String(p?.marital_status||'').toLowerCase();
+  if(gender==='male') return 'Shri.';
+  if(gender==='female'){
+    if(marital==='married'||marital==='widowed') return 'Smt.';
+    if(marital==='unmarried') return 'Selvi.';
+  }
+  return '';
+}
+function respectfulPatientNameV35(p){
+  if(!p)return '';
+  const prefix=patientPrefixV35(p);
+  return `${prefix?prefix+' ':''}${String(p.full_name||'').trim()}`.trim();
+}
+function patientDemographicFieldsV35(p={}){
+  return `
+    ${field('Full Name','p_name','text',p.full_name||'')}
+    ${field('Date of Birth','p_dob','date',p.date_of_birth||'')}
+    ${field('Age','p_age','number',p.age||'')}
+    ${selectWithValue('Gender','p_gender',['Male','Female','Other'],p.gender||'Male')}
+    ${selectWithValue('Marital Status','p_marital',['Unmarried','Married','Widowed','Divorced','Separated','Not Applicable'],p.marital_status||(p.gender==='Female'?'Unmarried':'Not Applicable'))}
+    ${field('Blood Group','p_blood','text',p.blood_group||'')}
+    ${field('Occupation','p_occupation','text',p.occupation||'')}
+    ${field('Religion','p_religion','text',p.religion||'')}
+    ${field('Preferred Language','p_language','text',p.preferred_language||'Tamil')}
+    ${field('Nationality','p_nationality','text',p.nationality||'Indian')}
+    ${field('Aadhaar Number (Optional)','p_aadhaar','text',p.aadhaar_number||'')}
+    ${field('Guardian / Primary Attender','p_guardian','text',p.guardian_name||'')}
+    ${field('Guardian Relationship','p_guardian_relation','text',p.guardian_relationship||'')}
+  `;
+}
+function patientClinicalFieldsV35(p={}){
+  return `
+    <div class="field"><label>Room / Bed</label><select id="p_room"><option value="">Select room</option>${rooms.map(r=>`<option value="${esc(r.room_no)}-${esc(r.bed_no)}">${esc(r.room_no)}-${esc(r.bed_no)}</option>`).join('')}</select></div>
+    ${field('Height (cm)','p_height','number',p.height_cm||'')}
+    ${field('Weight (kg)','p_weight','number',p.weight_kg||'')}
+    ${field('Facility Admission Date','p_date','date',p.admission_date||'')}
+    <div class="field"><label>Care Level</label><select id="p_care"><option>Independent</option><option>Assisted</option><option>High Dependency</option></select></div>
+    <div class="field span-2"><label>Diagnosis</label><textarea id="p_diag">${esc(p.diagnosis||'')}</textarea></div>
+    ${field('Emergency Contact','p_contact','text',p.emergency_contact||'')}
+    ${field('Referred By','p_referred','text',p.referred_by||'')}
+    ${field('Reference Contact Number','p_reference_contact','tel',p.reference_contact||'')}
+    ${field('Hospital Name','p_hospital','text',p.hospital_name||'')}
+    ${field('Treating Doctor','p_doctor','text',p.treating_doctor||'')}
+    ${field('Doctor Contact Number','p_doctor_contact','tel',p.doctor_contact||'')}
+    ${field('Hospital MR No.','p_mr','text',p.hospital_mr_no||'')}
+    ${field('Hospital Admission Date','p_hosp_adm','date',p.hospital_admission_date||'')}
+    ${field('Hospital Discharge Date','p_hosp_dis','date',p.hospital_discharge_date||'')}
+    <div class="field span-2"><label>Procedure / Surgery / Referral Remarks</label><textarea id="p_hosp_notes">${esc(p.hospital_notes||'')}</textarea></div>
+  `;
+}
+function readPatientFormV35(){
+  return {
+    full_name:$('p_name').value.trim(),
+    date_of_birth:$('p_dob').value||null,
+    age:Number($('p_age').value)||null,
+    gender:$('p_gender').value,
+    marital_status:$('p_marital').value,
+    blood_group:$('p_blood').value.trim()||null,
+    occupation:$('p_occupation').value.trim()||null,
+    religion:$('p_religion').value.trim()||null,
+    preferred_language:$('p_language').value.trim()||null,
+    nationality:$('p_nationality').value.trim()||null,
+    aadhaar_number:$('p_aadhaar').value.trim()||null,
+    guardian_name:$('p_guardian').value.trim()||null,
+    guardian_relationship:$('p_guardian_relation').value.trim()||null,
+    room_bed:$('p_room').value.trim(),
+    height_cm:Number($('p_height').value)||null,
+    weight_kg:Number($('p_weight').value)||null,
+    admission_date:$('p_date').value||null,
+    care_level:$('p_care').value,
+    diagnosis:$('p_diag').value.trim(),
+    emergency_contact:$('p_contact').value.trim(),
+    referred_by:$('p_referred').value.trim(),
+    reference_contact:$('p_reference_contact').value.trim(),
+    hospital_name:$('p_hospital').value.trim(),
+    treating_doctor:$('p_doctor').value.trim(),
+    doctor_contact:$('p_doctor_contact').value.trim(),
+    hospital_mr_no:$('p_mr').value.trim(),
+    hospital_admission_date:$('p_hosp_adm').value||null,
+    hospital_discharge_date:$('p_hosp_dis').value||null,
+    hospital_notes:$('p_hosp_notes').value.trim()
+  };
+}
+function syncAgeFromDobV35(){
+  const dob=$('p_dob')?.value;
+  if(!dob)return;
+  const d=new Date(dob),now=new Date();
+  let age=now.getFullYear()-d.getFullYear();
+  const m=now.getMonth()-d.getMonth();
+  if(m<0||(m===0&&now.getDate()<d.getDate()))age--;
+  if($('p_age'))$('p_age').value=Math.max(0,age);
+}
+function openPatient(){
+  modal(`<div class="modal-head"><h3>Add Patient</h3><button class="close">×</button></div>
+  <div class="form-grid">
+    ${patientDemographicFieldsV35({})}
+    ${patientClinicalFieldsV35({})}
+    <div class="span-2 right"><button class="btn btn-primary" id="savePatient">Save Patient</button></div>
+  </div>`);
+  $('p_room').value='';
+  $('p_care').value='Assisted';
+  $('p_dob')?.addEventListener('change',syncAgeFromDobV35);
+  $('savePatient').onclick=savePatient;
+}
+async function savePatient(){
+  try{
+    const obj=readPatientFormV35();
+    if(!obj.full_name)throw new Error('Full Name is required.');
+    obj.patient_code=`P${String(patients.length+1).padStart(4,'0')}`;
+    obj.created_by=me.id;
+    const {error}=await db.from('patients').insert(obj);
+    if(error)throw error;
+    closeModal();await loadAll();render();alert('Patient added successfully.');
+  }catch(e){showError(e)}
+}
+function openEditPatient(pid){
+  const p=patients.find(x=>x.id===pid);if(!p)return;
+  modal(`<div class="modal-head"><h3>Edit Patient</h3><button class="close">×</button></div>
+  <div class="form-grid">
+    ${patientDemographicFieldsV35(p)}
+    ${patientClinicalFieldsV35(p)}
+    <div class="span-2 right"><button class="btn btn-primary" id="updatePatient">Save Changes</button></div>
+  </div>`);
+  $('p_room').value=p.room_bed||'';
+  $('p_care').value=p.care_level||'Assisted';
+  $('p_dob')?.addEventListener('change',syncAgeFromDobV35);
+  $('updatePatient').onclick=()=>updatePatient(pid);
+}
+async function updatePatient(pid){
+  try{
+    const obj=readPatientFormV35();
+    if(!obj.full_name)throw new Error('Full Name is required.');
+    const {error}=await db.from('patients').update(obj).eq('id',pid);
+    if(error)throw error;
+    closeModal();await loadAll();render();alert('Patient details updated successfully.');
+  }catch(e){showError(e)}
+}
+function patientVarsV34(p){
+  const latestVital=vitals.find(v=>v.patient_id===p.id)||{};
+  const nextDoctor=doctorNotes.find(n=>n.patient_id===p.id&&n.next_review_date)||{};
+  return {
+    PatientName:respectfulPatientNameV35(p),
+    RoomNo:p.room_bed||'',
+    AdmissionDate:p.admission_date?new Date(p.admission_date).toLocaleDateString('en-IN'):'',
+    DischargeDate:p.discharge_date?new Date(p.discharge_date).toLocaleDateString('en-IN'):'',
+    Outstanding:Number(p.outstanding||0).toLocaleString('en-IN'),
+    Doctor:nextDoctor.doctor_name||p.treating_doctor||'',
+    AppointmentDate:nextDoctor.next_review_date?new Date(nextDoctor.next_review_date+'T00:00:00').toLocaleDateString('en-IN'):'',
+    AppointmentTime:'',
+    Temperature:latestVital.temperature??'',
+    Pulse:latestVital.pulse??'',
+    BloodPressure:latestVital.systolic_bp?`${latestVital.systolic_bp}/${latestVital.diastolic_bp}`:'',
+    SpO2:latestVital.spo2??'',
+    BloodSugar:latestVital.blood_sugar_value??'',
+    Time:new Date().toLocaleTimeString('en-IN'),
+    Date:new Date().toLocaleDateString('en-IN')
+  };
+}
+function respectfulPatientNameV343(p){return respectfulPatientNameV35(p)}
+/* ================= END V3.5 ================= */
