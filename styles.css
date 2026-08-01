@@ -82,3 +82,115 @@ textarea{width:100%;border:1px solid #cfdedb;border-radius:12px;padding:12px;fon
 @media print{
   #nav-clinical-intelligence,.clinical-actions-v32{display:none!important}
 }
+
+/* V3.2.2 Sidebar fit and readability */
+.sidebar{
+  height:100vh;
+  position:sticky;
+  top:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.sidebar .side-brand,
+.sidebar .side-title{
+  flex:0 0 auto;
+}
+.sidebar .nav{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding-right:6px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,.35) transparent;
+}
+.sidebar .nav::-webkit-scrollbar{width:7px}
+.sidebar .nav::-webkit-scrollbar-track{background:transparent}
+.sidebar .nav::-webkit-scrollbar-thumb{
+  background:rgba(255,255,255,.28);
+  border-radius:999px;
+}
+.sidebar .nav button{
+  min-height:44px;
+  font-size:15px;
+  line-height:1.25;
+  flex-shrink:0;
+}
+.sidebar .nav button span{
+  white-space:normal;
+}
+.sidebar .sidebar-foot{
+  flex:0 0 auto;
+  margin-top:8px;
+  padding-top:12px;
+  background:inherit;
+}
+@media (min-width:701px) and (max-height:850px){
+  .sidebar .nav button{
+    min-height:40px;
+    padding-top:8px;
+    padding-bottom:8px;
+    font-size:14px;
+  }
+  .sidebar .nav{gap:3px}
+}
+
+/* V3.2.3 Two-panel readable navigation */
+.nav-panel-switch{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  padding:10px 12px 8px;
+  flex:0 0 auto;
+}
+.nav-panel-switch button{
+  border:1px solid rgba(255,255,255,.22);
+  background:rgba(255,255,255,.07);
+  color:#dff9f4;
+  border-radius:11px;
+  min-height:38px;
+  padding:8px 7px;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+.nav-panel-switch button.active{
+  background:#18a596;
+  border-color:#18a596;
+  color:#fff;
+  box-shadow:0 5px 14px rgba(0,0,0,.14);
+}
+.nav-panel-title{
+  padding:5px 18px 5px;
+  color:#8fc6bd;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.14em;
+  flex:0 0 auto;
+}
+.sidebar .nav{
+  padding:4px 10px 10px;
+}
+.sidebar .nav button{
+  min-height:48px!important;
+  font-size:16px!important;
+  line-height:1.25!important;
+  padding:10px 12px!important;
+  margin:2px 0;
+}
+.sidebar .nav button i{
+  width:30px;
+  min-width:30px;
+  height:30px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.sidebar .nav button.nav-panel-hidden{
+  display:none!important;
+}
+@media (max-width:700px){
+  .nav-panel-switch{padding-top:8px}
+  .sidebar .nav button{font-size:16px!important;min-height:50px!important}
+}
