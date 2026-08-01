@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.6.1
+- Fixed blank Intelligent Reports page caused by a route naming mismatch.
+- Patient Daily Report and Daily Operations Report controls now display correctly.
+- No Supabase SQL changes required.
+
+# Changelog
+
 ## 3.6.0
 - Added Intelligent Patient Daily Report.
 - Added Intelligent Daily Operations Report.

@@ -2041,3 +2041,6 @@ bindPageActions=function(){
  $('generateOperationsReportV36')?.addEventListener('click',showOperationsReportV36);
 };
 /* ================= END V3.6 ================= */
+
+/* V3.6.1 Intelligent Reports route fix */
+window['render_intelligent-reports'] = render_intelligent_reports;
