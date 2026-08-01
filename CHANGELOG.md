@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.6.0
+- Added Intelligent Patient Daily Report.
+- Added Intelligent Daily Operations Report.
+- Added patient/date selection and automatic narrative generation.
+- Summarises vitals, alerts, care, nursing, medicines, diet, incidents, doctor reviews, admissions, discharges, billing and pending work.
+- Added management recommendations and follow-up flags.
+- Added print and Save as PDF layouts.
+- No new Supabase SQL required.
+
+# Changelog
+
+## 3.5.1
+- Fixed existing-patient Edit buttons opening the Add Patient form.
+- Edit buttons now always pass the selected patient ID to the V3.5 Edit Patient form.
+- Existing patient details are loaded correctly for editing.
+- No Supabase SQL changes required.
+
+# Changelog
+
 ## 3.5.0
 - Rebuilt the active Add Patient and Edit Patient forms.
 - Added Marital Status.

@@ -290,3 +290,23 @@ textarea{width:100%;border:1px solid #cfdedb;border-radius:12px;padding:12px;fon
 /* V3.5 Patient Master */
 .form-grid .span-2{grid-column:span 2}
 @media(max-width:760px){.form-grid .span-2{grid-column:span 1}}
+
+/* V3.6 Intelligent Reports */
+.report-controls-v36{display:grid;grid-template-columns:minmax(190px,.6fr) minmax(240px,1fr) auto;gap:16px;align-items:end;padding:18px;margin-bottom:18px}
+.report-buttons-v36{display:flex;gap:10px;flex-wrap:wrap}
+.report-toolbar-v36{display:flex;justify-content:flex-end;margin-bottom:12px}
+.ai-report-v36{background:#fff;color:#17222a;max-width:1050px;margin:0 auto;padding:28px;border:1px solid #d8e4e1;border-radius:16px}
+.report-letterhead-v36{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #0e8679;padding-bottom:14px;margin-bottom:18px}
+.report-letterhead-v36 h2{margin:0 0 4px;color:#075f54}
+.report-patient-v36{background:#edf8f5;border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.report-patient-v36 h3{margin:0 0 4px}
+.report-narrative-v36{font-size:15px;line-height:1.65}
+.report-narrative-v36 p{margin:0 0 12px}
+.report-disclaimer-v36{border-top:1px solid #d8e4e1;margin-top:18px;padding-top:12px;font-size:12px;color:#657}
+@media(max-width:850px){.report-controls-v36{grid-template-columns:1fr}.report-buttons-v36 .btn{flex:1 1 220px}.report-letterhead-v36{flex-direction:column}}
+@media print{
+ .sidebar,.topbar,.page-head,.report-controls-v36,.report-toolbar-v36{display:none!important}
+ .main,.content{margin:0!important;padding:0!important}
+ .section-card{border:0!important;padding:0!important}
+ .ai-report-v36{border:0!important;max-width:none!important;padding:12mm!important}
+}
