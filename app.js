@@ -318,6 +318,35 @@ function assessVitals(v){
  if(v.blood_sugar_value!==null){if(v.blood_sugar_value<54||v.blood_sugar_value>=400)findings.push([v.blood_sugar_type||'Blood Sugar',v.blood_sugar_value,'mg/dL','Critical']);else if(v.blood_sugar_value<70||v.blood_sugar_value>=250)findings.push([v.blood_sugar_type||'Blood Sugar',v.blood_sugar_value,'mg/dL','Warning'])}
  return findings;
 }
+
+/* V3.4.2 unified full clinical alert generator */
+async function queueFullClinicalAlertV342(patientId,finding){
+ const patient=patients.find(p=>p.id===patientId)||{};
+ const observation=`${finding[0]} ${finding[1]} ${finding[2]} (${finding[3]})`;
+ const vars={
+  ...(typeof patientVarsV34==='function'?patientVarsV34(patient):{}),
+  PatientName:patient.full_name||pname(patientId),
+  Observation:observation,
+  Time:new Date().toLocaleString('en-IN'),
+  RoomNo:patient.room_bed||'-',
+  StaffName:me?.full_name||'-'
+ };
+ const template=typeof getTemplateBodyV34==='function'
+   ? getTemplateBodyV34('CRITICAL_ALERT')
+   : `URGENT
+
+{PatientName} has developed a clinical condition requiring immediate attention.
+
+Observation: {Observation}
+Time: {Time}
+
+Our nursing team has initiated appropriate care. Kindly contact Samara Care immediately.`;
+ const fullMessage=(typeof fillTemplateV34==='function'?fillTemplateV34(template,vars):template)
+   + `\n\nRoom / Bed: ${patient.room_bed||'-'}`
+   + `\nRecorded by: ${me?.full_name||'-'}`;
+ await queueNotification('CRITICAL_ALERT',patientId,`${finding[3]} ${finding[0]} alert`,fullMessage);
+}
+
 async function saveSimple(k){try{let table,obj;if(k==='care'){table='care_records';obj={patient_id:$('x_patient').value,activity:$('x_a').value,status:$('x_s').value,remarks:$('x_r').value,recorded_by:me.id}}if(k==='vitals'){table='vital_signs';obj={patient_id:$('x_patient').value,temperature:$('x_temp').value===''?null:Number($('x_temp').value),temperature_unit:$('x_temp_unit').value,pulse:$('x_pulse').value===''?null:Number($('x_pulse').value),respiration:$('x_resp').value===''?null:Number($('x_resp').value),spo2:$('x_spo').value===''?null:Number($('x_spo').value),blood_sugar_type:$('x_sugar_type').value||null,blood_sugar_value:$('x_sugar').value===''?null:Number($('x_sugar').value),remarks:$('x_remarks').value,recorded_by:me.id};const findings=assessVitals(obj);obj.alert_level=findings.some(f=>f[3]==='Critical')?'Critical':findings.length?'Warning':'Normal';obj._findings=findings}if(k==='medicine'){table='medicine_records';obj={patient_id:$('x_patient').value,medicine:$('x_med').value,scheduled_time:$('x_time').value||null,status:$('x_s').value,recorded_by:me.id}}if(k==='meal'){table='meal_records';obj={patient_id:$('x_patient').value,meal_type:$('x_meal').value,diet_type:$('x_diet').value,consumption:$('x_cons').value,recorded_by:me.id}}if(k==='billing'){table='billing_transactions';const typ=$('x_type').value;obj={patient_id:$('x_patient').value,transaction_type:typ,amount:Number($('x_amount').value),description:$('x_desc').value,payment_mode:typ==='Payment'?$('x_mode').value:null,reference_no:$('x_ref').value,receipt_no:typ==='Payment'?`RCPT-${Date.now()}`:null,discount_reason:typ==='Discount'?$('x_discount_reason').value:null,discount_status:typ==='Discount'?(me.role==='Admin'||me.role==='Manager'?'Approved':'Pending'):null,discount_approved_by:typ==='Discount'&&(me.role==='Admin'||me.role==='Manager')?me.id:null,recorded_by:me.id}}const findings=obj._findings||[];delete obj._findings;const {data:inserted,error}=await db.from(table).insert(obj).select().single();if(error)throw error;if(k==='vitals'&&findings.length){for(const f of findings){await db.from('clinical_alerts').insert({patient_id:obj.patient_id,vital_sign_id:inserted.id,parameter:f[0],value:String(f[1]),unit:f[2],severity:f[3],status:'New',created_by:me.id});{
  const patient=patients.find(p=>p.id===obj.patient_id)||{};
  const observation=`${f[0]} ${f[1]} ${f[2]} (${f[3]})`;
@@ -590,7 +619,7 @@ async function saveSimple(k){
   if(k==='meal'){table='meal_records';obj={patient_id:$('x_patient').value,meal_type:$('x_meal').value,diet_type:$('x_diet').value,consumption:$('x_cons').value,recorded_by:me.id}}
   if(k==='billing'){table='billing_transactions';const typ=$('x_type').value;obj={patient_id:$('x_patient').value,transaction_type:typ,amount:Number($('x_amount').value),description:$('x_desc').value,payment_mode:typ==='Payment'?$('x_mode').value:null,reference_no:$('x_ref').value,receipt_no:typ==='Payment'?`RCPT-${Date.now()}`:null,discount_reason:typ==='Discount'?$('x_discount_reason').value:null,discount_status:typ==='Discount'?(me.role==='Admin'||me.role==='Manager'?'Approved':'Pending'):null,discount_approved_by:typ==='Discount'&&(me.role==='Admin'||me.role==='Manager')?me.id:null,recorded_by:me.id}}
   const {data:inserted,error}=await db.from(table).insert(obj).select().single();if(error)throw error;
-  if(k==='vitals'&&findings.length){for(const f of findings){await db.from('clinical_alerts').insert({patient_id:obj.patient_id,vital_sign_id:inserted.id,parameter:f[0],value:String(f[1]),unit:f[2],severity:f[3],status:'New',created_by:me.id});if(typeof queueNotification==='function')await queueNotification('ABNORMAL_VITAL',obj.patient_id,`${f[3]} ${f[0]} alert`,`${pname(obj.patient_id)}: ${f[0]} ${f[1]} ${f[2]}.`)}}
+  if(k==='vitals'&&findings.length){for(const f of findings){await db.from('clinical_alerts').insert({patient_id:obj.patient_id,vital_sign_id:inserted.id,parameter:f[0],value:String(f[1]),unit:f[2],severity:f[3],status:'New',created_by:me.id});await queueFullClinicalAlertV342(obj.patient_id,f)}}
   if(k==='billing'){const p=patients.find(x=>x.id===obj.patient_id);const delta=obj.transaction_type==='Charge'?obj.amount:obj.transaction_type==='Payment'?-obj.amount:obj.discount_status==='Approved'?-obj.amount:0;const newOutstanding=Math.max(0,Number(p.outstanding||0)+delta);await db.from('patients').update({outstanding:newOutstanding}).eq('id',p.id)}
   closeModal();await loadAll();render();
  }catch(e){showError(e)}

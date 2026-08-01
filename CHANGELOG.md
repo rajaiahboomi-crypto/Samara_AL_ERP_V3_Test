@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.4.2
+- Fixed a duplicate later saveSimple function that overrode the V3.4.1 clinical-alert correction.
+- All abnormal vital-sign paths now use one full Clinical Alert generator.
+- New alerts use event type CRITICAL_ALERT and the complete editable template.
+- Includes patient, observation, severity, time, room/bed and recorded-by staff.
+- No Supabase SQL changes required.
+
+# Changelog
+
 ## 3.4.1
 - Fixed abnormal vital alerts to use the complete Critical Alert message template.
 - Clinical WhatsApp alerts now include patient name, observation, severity, time, room/bed and recorded-by staff.
