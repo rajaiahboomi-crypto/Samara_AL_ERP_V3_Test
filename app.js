@@ -70,19 +70,30 @@ function render_notifications(){
  const rows=notificationQueue.map(n=>`<tr>
   <td>${new Date(n.created_at).toLocaleString('en-IN')}</td>
   <td>${esc(n.event_type)}</td><td>${esc(pname(n.patient_id))}</td>
-  <td>${esc(n.channel)}</td><td>${esc(n.recipient)}</td>
+  <td>${esc(n.recipient)}</td>
   <td class="notification-message">${esc(n.message)}</td>
-  <td><span class="tag ${n.status==='Sent'?'green':n.status==='Failed'?'red':'amber'}">${esc(n.status)}</span>${n.sent_at?`<br><small>${new Date(n.sent_at).toLocaleString('en-IN')}</small>`:''}${n.error_message?`<br><small class="error-text">${esc(n.error_message)}</small>`:''}</td>
+  <td><span class="tag ${n.status==='Opened'?'green':n.status==='Failed'?'red':'amber'}">${esc(n.status==='Opened'?'Opened in WhatsApp':n.status)}</span>${n.sent_at?`<br><small>${new Date(n.sent_at).toLocaleString('en-IN')}</small>`:''}</td>
   <td><div class="actions">
-   ${n.channel==='WhatsApp'?`<button class="btn btn-secondary btn-small wa-send" data-id="${n.id}">Open WhatsApp</button>`:''}
-   ${['Pending','Failed'].includes(n.status)?`<button class="btn btn-primary btn-small notification-send-one" data-id="${n.id}">${n.status==='Failed'?'Retry':'Send'}</button>`:''}
+   <button class="btn btn-primary btn-small wa-send" data-id="${n.id}">Open WhatsApp</button>
   </div></td></tr>`).join('');
- return `<div class="page-head"><div><h2>Notifications</h2><div class="muted">Twilio WhatsApp/SMS delivery queue and audit log</div></div>
- <div class="actions"><button class="btn btn-secondary" id="queuePending">Queue Payment Reminders</button><button class="btn btn-primary" id="sendPendingNotifications">Send Pending Now</button></div></div>
- <div class="notice"><b>Twilio messaging:</b> Credentials are stored securely in Supabase Edge Function secrets. WhatsApp Sandbox messages can be sent only to numbers that joined the Sandbox. SMS requires a Twilio SMS-capable sender number.</div>
- <div class="table-wrap"><table><thead><tr><th>Date</th><th>Event</th><th>Patient</th><th>Channel</th><th>Recipient</th><th>Message</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows||'<tr><td colspan="8">No notifications queued</td></tr>'}</tbody></table></div>`}
+ return `<div class="page-head"><div><h2>Notifications</h2><div class="muted">Manual WhatsApp messages, reminders and communication history</div></div>
+ <div class="actions notification-head-actions">
+  <button class="btn btn-secondary" id="queuePending">Queue Bill Reminders</button>
+  <button class="btn btn-secondary" id="queueAppointmentsV332">Queue Appointments</button>
+  <button class="btn btn-primary" id="newManualMessageV332">+ New Message</button>
+ </div></div>
+ <div class="notice"><b>Manual WhatsApp mode:</b> Select or queue a message, then click <b>Open WhatsApp</b>. The recipient and message will be filled automatically. Automatic Twilio delivery remains inactive until a paid/approved messaging service is enabled.</div>
+ <div class="table-wrap"><table><thead><tr><th>Date</th><th>Event</th><th>Patient</th><th>Recipient</th><th>Message</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows||'<tr><td colspan="7">No notifications queued</td></tr>'}</tbody></table></div>`}
 async function queuePendingPaymentReminders(){try{for(const p of patients.filter(x=>Number(x.outstanding)>0)){await queueNotification('PAYMENT_PENDING',p.id,'Payment reminder',`Samara Care: Outstanding amount for ${p.full_name} is ₹${Number(p.outstanding).toLocaleString('en-IN')}. Please contact Accounts for details.`)}alert('Pending-payment reminders queued.')}catch(e){showError(e)}}
-async function openWhatsAppNotification(id){const n=notificationQueue.find(x=>x.id===id);if(!n)return;const phone=String(n.recipient||'').replace(/\D/g,'');window.open(`https://wa.me/${phone.startsWith('91')?phone:'91'+phone}?text=${encodeURIComponent(n.message)}`,'_blank')}
+async function openWhatsAppNotification(id){
+ const n=notificationQueue.find(x=>x.id===id);if(!n)return;
+ const phone=String(n.recipient||'').replace(/\D/g,'');
+ window.open(`https://wa.me/${phone.startsWith('91')?phone:'91'+phone}?text=${encodeURIComponent(n.message)}`,'_blank');
+ try{
+  await db.from('notification_queue').update({status:'Opened',sent_at:new Date().toISOString(),error_message:null}).eq('id',id);
+  n.status='Opened';n.sent_at=new Date().toISOString();render();
+ }catch(e){console.warn(e)}
+}
 async function invokeNotificationSender(ids){
  try{
   setSync('Sending...');
@@ -97,6 +108,134 @@ async function invokeNotificationSender(ids){
 }
 async function sendPendingNotifications(){await invokeNotificationSender()}
 async function sendOneNotification(id){await invokeNotificationSender([id])}
+
+
+function appointmentMessageV332(p,note){
+ const date=note?.next_review_date?new Date(note.next_review_date+'T00:00:00').toLocaleDateString('en-IN'):'the scheduled date';
+ return `Samara Care Appointment Reminder
+
+Dear Attender,
+
+The next doctor review for ${p.full_name} is scheduled on ${date}.
+Doctor: ${note?.doctor_name||'As advised'}
+
+Please contact Samara Care for any clarification.`;
+}
+async function queueUpcomingAppointmentsV332(){
+ try{
+  const today=new Date();today.setHours(0,0,0,0);
+  const until=new Date(today);until.setDate(until.getDate()+7);
+  const upcoming=doctorNotes.filter(n=>{
+   if(!n.next_review_date)return false;
+   const d=new Date(n.next_review_date+'T00:00:00');
+   return d>=today&&d<=until;
+  });
+  if(!upcoming.length)return alert('No doctor appointments are due in the next 7 days.');
+  for(const n of upcoming){
+   const p=patients.find(x=>x.id===n.patient_id);
+   if(p)await queueNotification('APPOINTMENT_REMINDER',p.id,'Appointment reminder',appointmentMessageV332(p,n));
+  }
+  await loadAll();render();alert(`${upcoming.length} appointment reminder(s) queued.`);
+ }catch(e){showError(e)}
+}
+function manualTemplateV332(type,p){
+ const amount=Number(p.outstanding||0).toLocaleString('en-IN');
+ const templates={
+  'Pending Bill':`Samara Care Payment Reminder
+
+Dear Attender,
+
+The outstanding amount for ${p.full_name} is ₹${amount}.
+
+Kindly arrange payment or contact the Accounts Department for clarification.
+
+Thank you.
+Samara Care`,
+  'Bill Generated':`Samara Care Bill Update
+
+Dear Attender,
+
+A new bill/charge has been generated for ${p.full_name}.
+Current outstanding: ₹${amount}.
+
+Please contact Samara Care Accounts for the detailed bill.`,
+  'Payment Received':`Samara Care Payment Confirmation
+
+Dear Attender,
+
+Payment has been received for ${p.full_name}.
+Current outstanding balance: ₹${amount}.
+
+Thank you.
+Samara Care`,
+  'Admission':`Samara Care Admission Update
+
+Dear Attender,
+
+${p.full_name} has been admitted to Samara Care.
+Room/Bed: ${p.room_bed||'-'}.
+
+Please contact us for any assistance.`,
+  'Discharge':`Samara Care Discharge Update
+
+Dear Attender,
+
+${p.full_name} has been discharged from Samara Care.
+Please collect the discharge documents and final account statement.`,
+  'Incident Update':`Samara Care Important Update
+
+Dear Attender,
+
+An incident/care issue concerning ${p.full_name} has been recorded. Our team is attending to it.
+
+Please contact the nursing station for details.`,
+  'Custom':''
+ };
+ return templates[type]||'';
+}
+function openManualMessageV332(){
+ modal(`<div class="modal-head"><div><h3>New WhatsApp Message</h3><div class="muted">Prepare a message and open it in WhatsApp</div></div><button class="close">×</button></div>
+ <div class="form-grid">
+  <div class="field"><label>Patient</label><select id="manualPatientV332">${v31PatientOptions()}</select></div>
+  ${selectWithValue('Message Type','manualTypeV332',['Pending Bill','Bill Generated','Payment Received','Appointment Reminder','Admission','Discharge','Incident Update','Custom'],'Pending Bill')}
+  <div class="field span-2"><label>Recipient Mobile</label><input id="manualMobileV332"></div>
+  <div class="field span-2"><label>Message</label><textarea id="manualTextV332" rows="11"></textarea></div>
+ </div>
+ <div class="actions right"><button class="btn btn-secondary close-v332">Cancel</button><button class="btn btn-secondary" id="queueManualV332">Save to Queue</button><button class="btn btn-primary" id="openManualV332">Open WhatsApp</button></div>`);
+ document.querySelector('.close-v332').onclick=closeModal;
+ const refresh=()=>{
+  const p=patients.find(x=>x.id===$('manualPatientV332').value)||{};
+  $('manualMobileV332').value=p.notification_mobile||p.reference_contact||'';
+  const type=$('manualTypeV332').value;
+  if(type==='Appointment Reminder'){
+   const note=doctorNotes.find(n=>n.patient_id===p.id&&n.next_review_date);
+   $('manualTextV332').value=appointmentMessageV332(p,note);
+  }else $('manualTextV332').value=manualTemplateV332(type,p);
+ };
+ $('manualPatientV332').onchange=refresh;$('manualTypeV332').onchange=refresh;refresh();
+ const save=async(openAfter=false)=>{
+  try{
+   const patientId=$('manualPatientV332').value,p=patients.find(x=>x.id===patientId);
+   const mobile=$('manualMobileV332').value.trim(),message=$('manualTextV332').value.trim();
+   if(!mobile)throw new Error('Enter the recipient mobile number.');
+   if(!message)throw new Error('Enter the WhatsApp message.');
+   const eventType=$('manualTypeV332').value.toUpperCase().replace(/\s+/g,'_');
+   const {data,error}=await db.from('notification_queue').insert({
+    event_type:eventType,patient_id:patientId,channel:'WhatsApp',recipient:mobile,
+    title:$('manualTypeV332').value,message,status:'Pending',created_by:me.id
+   }).select().single();
+   if(error)throw error;
+   if(openAfter){
+    const phone=mobile.replace(/\D/g,'');
+    window.open(`https://wa.me/${phone.startsWith('91')?phone:'91'+phone}?text=${encodeURIComponent(message)}`,'_blank');
+    await db.from('notification_queue').update({status:'Opened',sent_at:new Date().toISOString()}).eq('id',data.id);
+   }
+   closeModal();await loadAll();render();
+  }catch(e){showError(e)}
+ };
+ $('queueManualV332').onclick=()=>save(false);
+ $('openManualV332').onclick=()=>save(true);
+}
 
 function render_employees(){
  if(me.role!=='Admin')return '<div class="notice">Employee profiles are restricted to the Administrator.</div>';
@@ -203,7 +342,7 @@ async function uploadEmployeeFile(id,file,category,title,documentDate='',remarks
 async function openEmployeeWebcam(id){if(!navigator.mediaDevices?.getUserMedia)return showError(new Error('Webcam is not available in this browser.'));modal(`<div class="modal-head"><h3>Capture Employee Photo</h3><button class="close">×</button></div><div class="patient-camera-capture"><video id="employeeWebcamVideo" autoplay playsinline></video><canvas id="employeeWebcamCanvas" class="hidden"></canvas><div class="camera-guide">Ask the employee to face the camera. Keep the face centred and use even lighting.</div><div class="right"><button class="btn btn-primary" id="captureEmployeePhoto">Capture & Upload</button></div></div>`);let stream;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:1280}},audio:false});$('employeeWebcamVideo').srcObject=stream;const stop=()=>stream?.getTracks().forEach(t=>t.stop());document.querySelector('.modal .close').addEventListener('click',stop,{once:true});$('captureEmployeePhoto').onclick=async()=>{const v=$('employeeWebcamVideo'),c=$('employeeWebcamCanvas'),size=Math.min(v.videoWidth,v.videoHeight),sx=(v.videoWidth-size)/2,sy=(v.videoHeight-size)/2;c.width=700;c.height=700;c.getContext('2d').drawImage(v,sx,sy,size,size,0,0,700,700);const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));stop();if(blob)await uploadEmployeeFile(id,new File([blob],`employee-photo-${Date.now()}.jpg`,{type:'image/jpeg'}),'Employee Photograph','Employee Photograph')}}catch(e){showError(new Error('Camera permission was not granted or the webcam is unavailable.'))}}
 
 async function toggleEmployee(id,active){try{const {error}=await db.rpc('samara_admin_set_employee_active',{p_user_id:id,p_active:active});if(error)throw error;await loadAll();render()}catch(e){showError(e)}}
-function bindPageActions(){$('addPatient')?.addEventListener('click',openPatient);$('addCare')?.addEventListener('click',()=>openSimple('care'));$('addVitals')?.addEventListener('click',()=>openSimple('vitals'));$('addMedicine')?.addEventListener('click',()=>openSimple('medicine'));$('addMeal')?.addEventListener('click',()=>openSimple('meal'));$('addBilling')?.addEventListener('click',()=>openSimple('billing'));$('addEmployee')?.addEventListener('click',openEmployee);$('addRoomBed')?.addEventListener('click',()=>openRoomBed());document.querySelectorAll('.edit-room').forEach(b=>b.onclick=()=>openRoomBed(b.dataset.id));$('patientSearch')?.addEventListener('input',applyPatientFilters);$('patientRefFilter')?.addEventListener('change',applyPatientFilters);$('patientPayFilter')?.addEventListener('change',applyPatientFilters);document.querySelectorAll('.patient-profile').forEach(b=>b.onclick=()=>openPatientProfile(b.dataset.id));document.querySelectorAll('.patient-edit').forEach(b=>b.onclick=()=>openEditPatient(b.dataset.id));document.querySelectorAll('.patient-docs').forEach(b=>b.onclick=()=>openPatientProfile(b.dataset.id,true));document.querySelectorAll('.patient-history').forEach(b=>b.onclick=()=>openPaymentHistory(b.dataset.id));['billPatient','billRef','billRaised','billType','billFrom','billTo'].forEach(id=>$(id)?.addEventListener('change',applyBillingFilters));bindBillingButtons();$('printPatients')?.addEventListener('click',()=>window.print());$('printReport')?.addEventListener('click',()=>window.print());$('dailyReport')?.addEventListener('click',()=>{const t=dateInputValue(new Date());$('reportFrom').value=t;$('reportTo').value=t;updateReportPreview()});$('periodReport')?.addEventListener('click',updateReportPreview);$('previewReport')?.addEventListener('click',updateReportPreview);$('printGeneratedReport')?.addEventListener('click',()=>window.print());document.querySelectorAll('.employee-profile').forEach(b=>b.onclick=()=>openEmployeeProfile(b.dataset.id));document.querySelectorAll('.toggle-employee').forEach(b=>b.onclick=()=>toggleEmployee(b.dataset.id,b.dataset.active==='true'));$('queuePending')?.addEventListener('click',queuePendingPaymentReminders);$('sendPendingNotifications')?.addEventListener('click',sendPendingNotifications);document.querySelectorAll('.wa-send').forEach(b=>b.onclick=()=>openWhatsAppNotification(b.dataset.id));document.querySelectorAll('.notification-send-one').forEach(b=>b.onclick=()=>sendOneNotification(b.dataset.id));document.querySelectorAll('.med-given').forEach(b=>b.onclick=async()=>{const {error}=await db.from('medicine_records').update({status:'Given',administered_at:new Date().toISOString()}).eq('id',b.dataset.id);if(error)showError(error)})}
+function bindPageActions(){$('addPatient')?.addEventListener('click',openPatient);$('addCare')?.addEventListener('click',()=>openSimple('care'));$('addVitals')?.addEventListener('click',()=>openSimple('vitals'));$('addMedicine')?.addEventListener('click',()=>openSimple('medicine'));$('addMeal')?.addEventListener('click',()=>openSimple('meal'));$('addBilling')?.addEventListener('click',()=>openSimple('billing'));$('addEmployee')?.addEventListener('click',openEmployee);$('addRoomBed')?.addEventListener('click',()=>openRoomBed());document.querySelectorAll('.edit-room').forEach(b=>b.onclick=()=>openRoomBed(b.dataset.id));$('patientSearch')?.addEventListener('input',applyPatientFilters);$('patientRefFilter')?.addEventListener('change',applyPatientFilters);$('patientPayFilter')?.addEventListener('change',applyPatientFilters);document.querySelectorAll('.patient-profile').forEach(b=>b.onclick=()=>openPatientProfile(b.dataset.id));document.querySelectorAll('.patient-edit').forEach(b=>b.onclick=()=>openEditPatient(b.dataset.id));document.querySelectorAll('.patient-docs').forEach(b=>b.onclick=()=>openPatientProfile(b.dataset.id,true));document.querySelectorAll('.patient-history').forEach(b=>b.onclick=()=>openPaymentHistory(b.dataset.id));['billPatient','billRef','billRaised','billType','billFrom','billTo'].forEach(id=>$(id)?.addEventListener('change',applyBillingFilters));bindBillingButtons();$('printPatients')?.addEventListener('click',()=>window.print());$('printReport')?.addEventListener('click',()=>window.print());$('dailyReport')?.addEventListener('click',()=>{const t=dateInputValue(new Date());$('reportFrom').value=t;$('reportTo').value=t;updateReportPreview()});$('periodReport')?.addEventListener('click',updateReportPreview);$('previewReport')?.addEventListener('click',updateReportPreview);$('printGeneratedReport')?.addEventListener('click',()=>window.print());document.querySelectorAll('.employee-profile').forEach(b=>b.onclick=()=>openEmployeeProfile(b.dataset.id));document.querySelectorAll('.toggle-employee').forEach(b=>b.onclick=()=>toggleEmployee(b.dataset.id,b.dataset.active==='true'));$('queuePending')?.addEventListener('click',queuePendingPaymentReminders);$('queueAppointmentsV332')?.addEventListener('click',queueUpcomingAppointmentsV332);$('newManualMessageV332')?.addEventListener('click',openManualMessageV332);$('sendPendingNotifications')?.addEventListener('click',sendPendingNotifications);document.querySelectorAll('.wa-send').forEach(b=>b.onclick=()=>openWhatsAppNotification(b.dataset.id));document.querySelectorAll('.notification-send-one').forEach(b=>b.onclick=()=>sendOneNotification(b.dataset.id));document.querySelectorAll('.med-given').forEach(b=>b.onclick=async()=>{const {error}=await db.from('medicine_records').update({status:'Given',administered_at:new Date().toISOString()}).eq('id',b.dataset.id);if(error)showError(error)})}
 
 function bmiValue(p){const h=Number(p.height_cm),w=Number(p.weight_kg);return h&&w?(w/((h/100)**2)).toFixed(1):'-'}
 function patientSummary(pid){const p=patients.find(x=>x.id===pid);if(!p)return '';const last=vitals.find(x=>x.patient_id===pid);return `<div class="summary-grid"><div><b>${esc(p.full_name)}</b><br><span class="muted">${esc(p.patient_code)} · Room ${esc(p.room_bed||'-')}</span></div><div><b>Height / Weight</b><br>${esc(p.height_cm||'-')} cm / ${esc(p.weight_kg||'-')} kg · BMI ${bmiValue(p)}</div><div><b>Diagnosis</b><br>${esc(p.diagnosis||'-')}</div><div><b>Latest Sugar</b><br>${last?.blood_sugar_value?`${esc(last.blood_sugar_type)} ${esc(last.blood_sugar_value)} mg/dL`:'-'}</div></div>`}
@@ -356,7 +495,7 @@ async function saveDocument(){
 async function viewDocument(path){try{const {data,error}=await db.storage.from('patient-documents').createSignedUrl(path,300);if(error)throw error;window.open(data.signedUrl,'_blank')}catch(e){showError(e)}}
 function openPatientDocuments(pid){openDocument(pid)}
 function bindPatientButtons(){document.querySelectorAll('.patient-profile').forEach(b=>b.onclick=()=>openPatientProfile(b.dataset.id));document.querySelectorAll('.patient-edit').forEach(b=>b.onclick=()=>openEditPatient(b.dataset.id));document.querySelectorAll('.patient-docs').forEach(b=>b.onclick=()=>openPatientProfile(b.dataset.id,true));document.querySelectorAll('.patient-history').forEach(b=>b.onclick=()=>openPaymentHistory(b.dataset.id));document.querySelectorAll('.patient-profile').forEach(b=>b.onclick=()=>openPatientProfile(b.dataset.id));document.querySelectorAll('.patient-docs').forEach(b=>b.onclick=()=>openPatientDocuments(b.dataset.id))}
-function bindPageActions(){$('addPatient')?.addEventListener('click',openPatient);$('addCare')?.addEventListener('click',()=>openSimple('care'));$('addVitals')?.addEventListener('click',()=>openSimple('vitals'));$('addMedicine')?.addEventListener('click',()=>openSimple('medicine'));$('addMeal')?.addEventListener('click',()=>openSimple('meal'));$('addIncident')?.addEventListener('click',openIncident);$('printIncidents')?.addEventListener('click',()=>window.print());$('addDocument')?.addEventListener('click',()=>openDocument());$('docPatientFilter')?.addEventListener('change',()=>{$('docRows').innerHTML=documentRows(documents.filter(x=>!$('docPatientFilter').value||x.patient_id===$('docPatientFilter').value));bindDocumentButtons()});$('addBilling')?.addEventListener('click',()=>openSimple('billing'));$('addEmployee')?.addEventListener('click',openEmployee);$('addRoomBed')?.addEventListener('click',()=>openRoomBed());document.querySelectorAll('.edit-room').forEach(b=>b.onclick=()=>openRoomBed(b.dataset.id));$('patientSearch')?.addEventListener('input',applyPatientFilters);$('patientRefFilter')?.addEventListener('change',applyPatientFilters);$('patientPayFilter')?.addEventListener('change',applyPatientFilters);bindPatientButtons();bindDocumentButtons();['billPatient','billRef','billRaised','billType','billFrom','billTo'].forEach(id=>$(id)?.addEventListener('change',applyBillingFilters));bindBillingButtons();$('printPatients')?.addEventListener('click',()=>window.print());$('printReport')?.addEventListener('click',()=>window.print());$('dailyReport')?.addEventListener('click',()=>{const t=dateInputValue(new Date());$('reportFrom').value=t;$('reportTo').value=t;updateReportPreview()});$('periodReport')?.addEventListener('click',updateReportPreview);$('previewReport')?.addEventListener('click',updateReportPreview);$('printGeneratedReport')?.addEventListener('click',()=>window.print());document.querySelectorAll('.employee-profile').forEach(b=>b.onclick=()=>openEmployeeProfile(b.dataset.id));document.querySelectorAll('.toggle-employee').forEach(b=>b.onclick=()=>toggleEmployee(b.dataset.id,b.dataset.active==='true'));$('queuePending')?.addEventListener('click',queuePendingPaymentReminders);$('sendPendingNotifications')?.addEventListener('click',sendPendingNotifications);document.querySelectorAll('.wa-send').forEach(b=>b.onclick=()=>openWhatsAppNotification(b.dataset.id));document.querySelectorAll('.notification-send-one').forEach(b=>b.onclick=()=>sendOneNotification(b.dataset.id));document.querySelectorAll('.med-given').forEach(b=>b.onclick=async()=>{const {error}=await db.from('medicine_records').update({status:'Given',administered_at:new Date().toISOString()}).eq('id',b.dataset.id);if(error)showError(error)})}
+function bindPageActions(){$('addPatient')?.addEventListener('click',openPatient);$('addCare')?.addEventListener('click',()=>openSimple('care'));$('addVitals')?.addEventListener('click',()=>openSimple('vitals'));$('addMedicine')?.addEventListener('click',()=>openSimple('medicine'));$('addMeal')?.addEventListener('click',()=>openSimple('meal'));$('addIncident')?.addEventListener('click',openIncident);$('printIncidents')?.addEventListener('click',()=>window.print());$('addDocument')?.addEventListener('click',()=>openDocument());$('docPatientFilter')?.addEventListener('change',()=>{$('docRows').innerHTML=documentRows(documents.filter(x=>!$('docPatientFilter').value||x.patient_id===$('docPatientFilter').value));bindDocumentButtons()});$('addBilling')?.addEventListener('click',()=>openSimple('billing'));$('addEmployee')?.addEventListener('click',openEmployee);$('addRoomBed')?.addEventListener('click',()=>openRoomBed());document.querySelectorAll('.edit-room').forEach(b=>b.onclick=()=>openRoomBed(b.dataset.id));$('patientSearch')?.addEventListener('input',applyPatientFilters);$('patientRefFilter')?.addEventListener('change',applyPatientFilters);$('patientPayFilter')?.addEventListener('change',applyPatientFilters);bindPatientButtons();bindDocumentButtons();['billPatient','billRef','billRaised','billType','billFrom','billTo'].forEach(id=>$(id)?.addEventListener('change',applyBillingFilters));bindBillingButtons();$('printPatients')?.addEventListener('click',()=>window.print());$('printReport')?.addEventListener('click',()=>window.print());$('dailyReport')?.addEventListener('click',()=>{const t=dateInputValue(new Date());$('reportFrom').value=t;$('reportTo').value=t;updateReportPreview()});$('periodReport')?.addEventListener('click',updateReportPreview);$('previewReport')?.addEventListener('click',updateReportPreview);$('printGeneratedReport')?.addEventListener('click',()=>window.print());document.querySelectorAll('.employee-profile').forEach(b=>b.onclick=()=>openEmployeeProfile(b.dataset.id));document.querySelectorAll('.toggle-employee').forEach(b=>b.onclick=()=>toggleEmployee(b.dataset.id,b.dataset.active==='true'));$('queuePending')?.addEventListener('click',queuePendingPaymentReminders);$('queueAppointmentsV332')?.addEventListener('click',queueUpcomingAppointmentsV332);$('newManualMessageV332')?.addEventListener('click',openManualMessageV332);$('sendPendingNotifications')?.addEventListener('click',sendPendingNotifications);document.querySelectorAll('.wa-send').forEach(b=>b.onclick=()=>openWhatsAppNotification(b.dataset.id));document.querySelectorAll('.notification-send-one').forEach(b=>b.onclick=()=>sendOneNotification(b.dataset.id));document.querySelectorAll('.med-given').forEach(b=>b.onclick=async()=>{const {error}=await db.from('medicine_records').update({status:'Given',administered_at:new Date().toISOString()}).eq('id',b.dataset.id);if(error)showError(error)})}
 function bindDocumentButtons(){document.querySelectorAll('.view-document').forEach(b=>b.onclick=()=>viewDocument(b.dataset.path))}
 
 async function changePassword(){const pw=prompt('Enter new password (minimum 6 characters):');if(!pw)return;if(pw.length<6)return alert('Password must contain at least 6 characters.');const {error}=await db.auth.updateUser({password:pw});if(error)showError(error);else alert('Password changed successfully.')}
@@ -1127,3 +1266,328 @@ go = function(p){
 
 /* V3.3.1 Require credentials on every fresh launch */
 window.addEventListener('pagehide',()=>{db.auth.signOut().catch(()=>{})});
+
+
+/* ================= V3.4 COMMUNICATION CENTRE ================= */
+let messageTemplatesV34=[],notificationRulesV34=[];
+
+(function registerCommunicationCentreV34(){
+  ['Admin','Manager','Accounts'].forEach(role=>{
+    rolePages[role]=rolePages[role]||[];
+    if(!rolePages[role].includes('communications'))rolePages[role].push('communications');
+  });
+  labels.communications='Communication Centre';
+  navIcons.communications='✉';
+  if(typeof navGroupsV33!=='undefined'){
+    const q=navGroupsV33.find(g=>g.id==='quality');
+    if(q&&!q.pages.includes('communications'))q.pages.push('communications');
+  }
+})();
+
+const loadAllBeforeV34=loadAll;
+loadAll=async function(){
+  await loadAllBeforeV34();
+  const [templatesRes,rulesRes]=await Promise.all([
+    db.from('message_templates').select('*').order('template_name'),
+    db.from('notification_rules').select('*').order('event_type')
+  ]);
+  if(templatesRes.error||rulesRes.error){
+    console.warn('V3.4 communication tables not ready',templatesRes.error||rulesRes.error);
+    messageTemplatesV34=[];notificationRulesV34=[];
+  }else{
+    messageTemplatesV34=templatesRes.data||[];
+    notificationRulesV34=rulesRes.data||[];
+  }
+};
+
+const defaultTemplatesV34={
+ ADMISSION:`Dear Sir/Madam,
+
+This is to inform you that {PatientName} has been successfully admitted to Samara Care Assisted Living.
+
+Admission Date: {AdmissionDate}
+Room / Bed: {RoomNo}
+
+Our team is committed to providing safe, compassionate and dignified care.
+
+Thank you.
+Samara Care Assisted Living`,
+ BILL_GENERATED:`Dear Sir/Madam,
+
+The bill for {PatientName} has been generated.
+
+Bill Amount: ₹{BillAmount}
+Outstanding: ₹{Outstanding}
+Due Date: {DueDate}
+
+Please contact our Accounts Department for the detailed statement.
+
+Thank you.
+Samara Care Assisted Living`,
+ PAYMENT_REMINDER:`Dear Sir/Madam,
+
+This is a gentle reminder regarding the outstanding payment for {PatientName}.
+
+Outstanding Amount: ₹{Outstanding}
+
+Kindly arrange payment at your earliest convenience. If payment has already been made, please ignore this message.
+
+Thank you.
+Samara Care Assisted Living`,
+ PAYMENT_RECEIVED:`Dear Sir/Madam,
+
+We acknowledge with thanks the receipt of your payment.
+
+Patient: {PatientName}
+Amount Received: ₹{Amount}
+Receipt No: {ReceiptNo}
+Balance Outstanding: ₹{Outstanding}
+
+Thank you.
+Samara Care Assisted Living`,
+ APPOINTMENT_REMINDER:`Dear Sir/Madam,
+
+This is a reminder that {PatientName} has a scheduled doctor's review.
+
+Date: {AppointmentDate}
+Time: {AppointmentTime}
+Doctor: {Doctor}
+
+Please contact us if any changes are required.
+
+Samara Care Assisted Living`,
+ MEDICINE_REFILL:`Dear Sir/Madam,
+
+The prescribed medicines for {PatientName} are due for refill.
+
+Medicine: {Medication}
+
+Please arrange the medicines at the earliest to avoid interruption in treatment.
+
+Thank you.
+Samara Care Assisted Living`,
+ CRITICAL_ALERT:`URGENT
+
+{PatientName} has developed a clinical condition requiring immediate attention.
+
+Observation: {Observation}
+Time: {Time}
+
+Our nursing team has initiated appropriate care. Kindly contact Samara Care immediately.`,
+ INCIDENT_ALERT:`IMPORTANT UPDATE
+
+{PatientName} was involved in an incident.
+
+Time: {Time}
+Brief Description: {IncidentDescription}
+
+The resident has been assessed and appropriate care has been provided.
+
+Please contact us for further information.
+Samara Care Assisted Living`,
+ DAILY_SUMMARY:`Daily Health Update
+
+Patient: {PatientName}
+Temperature: {Temperature}
+Pulse: {Pulse}
+Blood Pressure: {BloodPressure}
+SpO₂: {SpO2}
+Blood Sugar: {BloodSugar}
+Food Intake: {FoodIntake}
+General Condition: {GeneralCondition}
+
+Regards,
+Samara Care Nursing Team`,
+ BIRTHDAY:`Happy Birthday!
+
+Wishing {PatientName} a wonderful birthday filled with happiness, peace and good health.
+
+With warm wishes,
+Samara Care Family`,
+ DISCHARGE:`Dear Sir/Madam,
+
+{PatientName} has been discharged from Samara Care.
+
+Discharge Date: {DischargeDate}
+Condition at Discharge: {DischargeCondition}
+
+Please collect the discharge summary, medicines and final billing documents.
+
+Samara Care Assisted Living`,
+ EMERGENCY_TRANSFER:`URGENT
+
+{PatientName} has been shifted to {Hospital}.
+
+Reason: {Reason}
+Time: {Time}
+
+Our staff is accompanying the resident. Please contact us immediately.
+
+Samara Care Assisted Living`,
+ DOCTOR_VISIT_COMPLETED:`Doctor Review Completed
+
+Patient: {PatientName}
+Doctor: {Doctor}
+Date: {Date}
+
+The resident has been examined and any changes in treatment have been documented.
+
+Samara Care Assisted Living`,
+ LAB_REPORT_READY:`Dear Sir/Madam,
+
+The laboratory reports for {PatientName} are now available.
+
+Please contact Samara Care if you would like a copy or explanation of the findings.
+
+Thank you.`,
+ VACCINATION_REMINDER:`Dear Sir/Madam,
+
+The following vaccination is due for {PatientName}.
+
+Vaccine: {Vaccine}
+Due Date: {DueDate}
+
+Please contact us to schedule the vaccination.
+
+Samara Care Assisted Living`
+};
+
+function getTemplateBodyV34(eventType){
+ const stored=messageTemplatesV34.find(t=>t.event_type===eventType&&t.active!==false);
+ return stored?.template_body||defaultTemplatesV34[eventType]||'';
+}
+function fillTemplateV34(body,vars){
+ return String(body||'').replace(/\{([A-Za-z0-9_]+)\}/g,(m,k)=>vars[k]??'');
+}
+function patientVarsV34(p){
+ const latestVital=vitals.find(v=>v.patient_id===p.id)||{};
+ const nextDoctor=doctorNotes.find(n=>n.patient_id===p.id&&n.next_review_date)||{};
+ return {
+  PatientName:p.full_name||'',
+  RoomNo:p.room_bed||'',
+  AdmissionDate:p.admission_date?new Date(p.admission_date).toLocaleDateString('en-IN'):'',
+  DischargeDate:p.discharge_date?new Date(p.discharge_date).toLocaleDateString('en-IN'):'',
+  Outstanding:Number(p.outstanding||0).toLocaleString('en-IN'),
+  Doctor:nextDoctor.doctor_name||p.doctor_name||'',
+  AppointmentDate:nextDoctor.next_review_date?new Date(nextDoctor.next_review_date+'T00:00:00').toLocaleDateString('en-IN'):'',
+  AppointmentTime:'',
+  Temperature:latestVital.temperature??'',
+  Pulse:latestVital.pulse??'',
+  BloodPressure:latestVital.systolic_bp?`${latestVital.systolic_bp}/${latestVital.diastolic_bp}`:'',
+  SpO2:latestVital.spo2??'',
+  BloodSugar:latestVital.blood_sugar_value??'',
+  Time:new Date().toLocaleTimeString('en-IN'),
+  Date:new Date().toLocaleDateString('en-IN')
+ };
+}
+function eventLabelV34(v){return v.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
+
+function render_communications(){
+ const templateRows=messageTemplatesV34.length?messageTemplatesV34:Object.keys(defaultTemplatesV34).map(k=>({event_type:k,template_name:eventLabelV34(k),template_body:defaultTemplatesV34[k],active:true}));
+ const rows=templateRows.map(t=>`<tr><td><b>${esc(t.template_name||eventLabelV34(t.event_type))}</b><br><small>${esc(t.event_type)}</small></td><td class="template-preview-v34">${esc(t.template_body)}</td><td><span class="tag ${t.active===false?'red':'green'}">${t.active===false?'Inactive':'Active'}</span></td><td><button class="btn btn-secondary btn-small edit-template-v34" data-event="${esc(t.event_type)}">Edit</button></td></tr>`).join('');
+ return `<div class="page-head"><div><h2>Communication Centre</h2><div class="muted">Templates, rules, family contacts and manual WhatsApp communication</div></div>
+ <div class="actions"><button class="btn btn-secondary" id="rulesV34">Notification Rules</button><button class="btn btn-primary" id="composeV34">+ Compose Message</button></div></div>
+ <div class="communication-cards-v34">
+  <button class="card communication-card-v34 quick-compose-v34" data-event="PAYMENT_REMINDER"><b>Payment Reminder</b><span>Outstanding bill</span></button>
+  <button class="card communication-card-v34 quick-compose-v34" data-event="PAYMENT_RECEIVED"><b>Payment Received</b><span>Receipt confirmation</span></button>
+  <button class="card communication-card-v34 quick-compose-v34" data-event="APPOINTMENT_REMINDER"><b>Appointment</b><span>Doctor review reminder</span></button>
+  <button class="card communication-card-v34 quick-compose-v34" data-event="CRITICAL_ALERT"><b>Clinical Alert</b><span>Urgent health update</span></button>
+  <button class="card communication-card-v34 quick-compose-v34" data-event="ADMISSION"><b>Admission</b><span>Welcome confirmation</span></button>
+  <button class="card communication-card-v34 quick-compose-v34" data-event="DISCHARGE"><b>Discharge</b><span>Discharge intimation</span></button>
+ </div>
+ <div class="section-card"><div class="section-title"><h3>Message Templates</h3></div>
+ <div class="table-wrap"><table><thead><tr><th>Template</th><th>Message Body</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function openTemplateEditorV34(eventType){
+ const existing=messageTemplatesV34.find(t=>t.event_type===eventType);
+ const body=existing?.template_body||defaultTemplatesV34[eventType]||'';
+ modal(`<div class="modal-head"><div><h3>Edit Message Template</h3><div class="muted">${esc(eventLabelV34(eventType))}</div></div><button class="close">×</button></div>
+ <div class="field"><label>Template Name</label><input id="tplNameV34" value="${esc(existing?.template_name||eventLabelV34(eventType))}"></div>
+ <div class="field"><label>Message Body</label><textarea id="tplBodyV34" rows="16">${esc(body)}</textarea></div>
+ <div class="notice"><b>Available variables:</b> {PatientName}, {RoomNo}, {Outstanding}, {Amount}, {ReceiptNo}, {Doctor}, {AppointmentDate}, {AppointmentTime}, {Temperature}, {Pulse}, {BloodPressure}, {SpO2}, {BloodSugar}, {Time}, {Date}, {Hospital}, {Reason}, {Medication}, {DueDate}</div>
+ <div class="actions right"><button class="btn btn-secondary close-v34">Cancel</button><button class="btn btn-primary" id="saveTplV34">Save Template</button></div>`);
+ document.querySelector('.close-v34').onclick=closeModal;
+ $('saveTplV34').onclick=async()=>{
+  try{
+   const obj={event_type:eventType,template_name:$('tplNameV34').value.trim(),template_body:$('tplBodyV34').value,active:true,updated_by:me.id,updated_at:new Date().toISOString()};
+   const {error}=await db.from('message_templates').upsert(obj,{onConflict:'event_type'});
+   if(error)throw error;closeModal();await loadAll();render();alert('Template saved.');
+  }catch(e){showError(e)}
+ };
+}
+
+function openComposerV34(initialEvent='PAYMENT_REMINDER'){
+ modal(`<div class="modal-head"><div><h3>Compose WhatsApp Message</h3><div class="muted">Review the message before opening WhatsApp</div></div><button class="close">×</button></div>
+ <div class="form-grid">
+  <div class="field"><label>Patient</label><select id="commPatientV34">${v31PatientOptions()}</select></div>
+  <div class="field"><label>Message Type</label><select id="commEventV34">${Object.keys(defaultTemplatesV34).map(k=>`<option value="${k}" ${k===initialEvent?'selected':''}>${esc(eventLabelV34(k))}</option>`).join('')}</select></div>
+  <div class="field span-2"><label>Recipient Mobile</label><input id="commMobileV34"></div>
+  <div class="field span-2"><label>Message</label><textarea id="commBodyV34" rows="16"></textarea></div>
+ </div>
+ <div class="actions right"><button class="btn btn-secondary close-v34">Cancel</button><button class="btn btn-secondary" id="saveQueueV34">Save to Queue</button><button class="btn btn-primary" id="openWaV34">Open WhatsApp</button></div>`);
+ document.querySelector('.close-v34').onclick=closeModal;
+ const refresh=()=>{
+  const p=patients.find(x=>x.id===$('commPatientV34').value)||{};
+  $('commMobileV34').value=p.notification_mobile||p.reference_contact||'';
+  $('commBodyV34').value=fillTemplateV34(getTemplateBodyV34($('commEventV34').value),patientVarsV34(p));
+ };
+ $('commPatientV34').onchange=refresh;$('commEventV34').onchange=refresh;refresh();
+ const save=async(openAfter)=>{
+  try{
+   const patientId=$('commPatientV34').value,eventType=$('commEventV34').value;
+   const mobile=$('commMobileV34').value.trim(),message=$('commBodyV34').value.trim();
+   if(!mobile)throw new Error('Recipient mobile number is required.');
+   if(!message)throw new Error('Message body is required.');
+   const {data,error}=await db.from('notification_queue').insert({
+    event_type:eventType,patient_id:patientId,channel:'WhatsApp',recipient:mobile,
+    title:eventLabelV34(eventType),message,status:'Pending',created_by:me.id
+   }).select().single();
+   if(error)throw error;
+   if(openAfter){
+    const phone=mobile.replace(/\D/g,'');
+    window.open(`https://wa.me/${phone.startsWith('91')?phone:'91'+phone}?text=${encodeURIComponent(message)}`,'_blank');
+    await db.from('notification_queue').update({status:'Opened',sent_at:new Date().toISOString()}).eq('id',data.id);
+   }
+   closeModal();await loadAll();go('notifications');
+  }catch(e){showError(e)}
+ };
+ $('saveQueueV34').onclick=()=>save(false);
+ $('openWaV34').onclick=()=>save(true);
+}
+
+function openRulesV34(){
+ const events=Object.keys(defaultTemplatesV34);
+ const rows=events.map(e=>{
+  const r=notificationRulesV34.find(x=>x.event_type===e)||{};
+  return `<tr><td>${esc(eventLabelV34(e))}</td><td><input type="checkbox" class="rule-wa-v34" data-event="${e}" ${r.whatsapp_enabled!==false?'checked':''}></td><td><input type="checkbox" class="rule-inapp-v34" data-event="${e}" ${r.in_app_enabled!==false?'checked':''}></td><td><select class="rule-approval-v34" data-event="${e}"><option ${r.approval_mode==='Manual'?'selected':''}>Manual</option><option ${r.approval_mode==='Administrator'?'selected':''}>Administrator</option></select></td></tr>`;
+ }).join('');
+ modal(`<div class="modal-head"><div><h3>Notification Rules</h3><div class="muted">Choose enabled channels and approval</div></div><button class="close">×</button></div>
+ <div class="table-wrap"><table><thead><tr><th>Event</th><th>WhatsApp</th><th>In-App</th><th>Approval</th></tr></thead><tbody>${rows}</tbody></table></div>
+ <div class="actions right"><button class="btn btn-secondary close-v34">Cancel</button><button class="btn btn-primary" id="saveRulesV34">Save Rules</button></div>`);
+ document.querySelector('.close-v34').onclick=closeModal;
+ $('saveRulesV34').onclick=async()=>{
+  try{
+   const payload=events.map(e=>({
+    event_type:e,
+    whatsapp_enabled:document.querySelector(`.rule-wa-v34[data-event="${e}"]`).checked,
+    in_app_enabled:document.querySelector(`.rule-inapp-v34[data-event="${e}"]`).checked,
+    sms_enabled:false,email_enabled:false,
+    approval_mode:document.querySelector(`.rule-approval-v34[data-event="${e}"]`).value,
+    updated_by:me.id,updated_at:new Date().toISOString()
+   }));
+   const {error}=await db.from('notification_rules').upsert(payload,{onConflict:'event_type'});
+   if(error)throw error;closeModal();await loadAll();alert('Notification rules saved.');
+  }catch(e){showError(e)}
+ };
+}
+
+const bindPageActionsBeforeV34=bindPageActions;
+bindPageActions=function(){
+ bindPageActionsBeforeV34();
+ $('composeV34')?.addEventListener('click',()=>openComposerV34());
+ $('rulesV34')?.addEventListener('click',openRulesV34);
+ document.querySelectorAll('.quick-compose-v34').forEach(b=>b.onclick=()=>openComposerV34(b.dataset.event));
+ document.querySelectorAll('.edit-template-v34').forEach(b=>b.onclick=()=>openTemplateEditorV34(b.dataset.event));
+};
+/* ================= END V3.4 ================= */

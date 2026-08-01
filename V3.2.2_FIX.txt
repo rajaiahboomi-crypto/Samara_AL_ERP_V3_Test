@@ -1,0 +1,16 @@
+SAMARA CARE ERP V3.2.2 — SIDEBAR FIX
+
+Upload these files to the V3 Test repository:
+- styles.css
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+
+After GitHub Pages deployment:
+1. Open the application.
+2. Press Ctrl + Shift + R once.
+3. Use the mouse wheel inside the left menu to scroll through all menu items.

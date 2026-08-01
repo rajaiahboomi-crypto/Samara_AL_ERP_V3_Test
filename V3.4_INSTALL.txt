@@ -1,0 +1,20 @@
+SAMARA CARE ERP V3.4 — COMMUNICATION CENTRE
+
+1. Run in Supabase SQL Editor:
+   supabase/11_V34_COMMUNICATION_CENTRE.sql
+
+2. Upload updated files to Samara_AL_ERP_V3_Test.
+
+3. After deployment press Ctrl + Shift + R once.
+
+New menu:
+Quality & Records → Communication Centre
+
+Functions:
+- Editable templates
+- Notification rules
+- Quick WhatsApp messages
+- Patient variables
+- Save to queue
+- Open WhatsApp
+- Communication history

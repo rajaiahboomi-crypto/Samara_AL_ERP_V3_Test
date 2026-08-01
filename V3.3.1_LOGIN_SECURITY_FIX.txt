@@ -1,0 +1,24 @@
+SAMARA CARE ERP V3.3.1 — LOGIN SECURITY FIX
+
+Issue:
+The browser/installed app was reopening with the previous valid admin session.
+
+Fix:
+- Saved login persistence is disabled.
+- Every fresh browser/app launch requires Login ID and password.
+- Current authenticated session remains active until logout or the app is closed.
+
+Upload:
+- app.js
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+After GitHub Pages deployment:
+1. Close all open Samara Care tabs/windows.
+2. Reopen the site.
+3. Press Ctrl + Shift + R once.
+4. Confirm that the login screen requires credentials.

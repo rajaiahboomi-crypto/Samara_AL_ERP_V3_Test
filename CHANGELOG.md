@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.4.0
+- Added Communication Centre.
+- Added editable professional message templates.
+- Added notification rules for WhatsApp and in-app delivery.
+- Added quick message cards for billing, appointments, clinical alerts, admission and discharge.
+- Added template variables and automatic patient-data replacement.
+- Added one-click WhatsApp composer and queue history.
+- Added Supabase migration 11_V34_COMMUNICATION_CENTRE.sql.
+
+# Changelog
+
+## 3.3.2
+- Added manual WhatsApp communication centre.
+- Added bill reminder, bill generated and payment received templates.
+- Added appointment reminders from Doctor Visit Notes.
+- Added admission, discharge and incident-update templates.
+- Added custom WhatsApp message composer.
+- Marks messages as Opened in WhatsApp for communication history.
+- Removed dependence on Twilio Send/Retry buttons in manual mode.
+- Existing billing transactions continue to queue bill and payment messages automatically.
+- No Supabase SQL changes required.
+
+# Changelog
+
 ## 3.3.1
 - Disabled saved-login persistence on browsers and installed apps.
 - Requires Login ID and password on every fresh launch.

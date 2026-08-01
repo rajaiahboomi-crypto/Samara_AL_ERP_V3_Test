@@ -1,0 +1,15 @@
+SAMARA CARE ERP V3.2.1 FIX
+
+Issue fixed:
+Clinical Intelligence menu opened a blank page because the page route used a hyphen while the renderer function used an underscore.
+
+Upload these updated files to the V3 Test repository:
+- app.js
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+After deployment, press Ctrl+Shift+R once.

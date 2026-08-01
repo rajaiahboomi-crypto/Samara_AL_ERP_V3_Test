@@ -1,0 +1,22 @@
+SAMARA CARE ERP V3.2.3 — TWO-PANEL NAVIGATION
+
+New sidebar:
+1. Operations panel
+   Dashboard, Patients, Rooms, Daily Care, Vitals, Medicines, Food, Incidents,
+   Documents, Billing, Employees, Reports and Notifications.
+
+2. Clinical panel
+   Nursing & Handover, Medication Administration, Resident Timeline and
+   Clinical Intelligence.
+
+Upload:
+- app.js
+- styles.css
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+After deployment, press Ctrl + Shift + R once.

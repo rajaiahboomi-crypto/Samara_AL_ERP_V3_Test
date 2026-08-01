@@ -1,0 +1,20 @@
+SAMARA CARE ERP V3.3 — ACCORDION NAVIGATION
+
+Navigation groups:
+- Operations: Dashboard, Patients, Rooms & Beds, Billing, Employees, Reports
+- Care: Daily Care, Vital Signs, Medicines, Food & Diet
+- Clinical: Nursing & Handover, Medication Administration, Resident Timeline,
+  Clinical Intelligence
+- Quality & Records: Incident & Fall Register, Documents, Notifications
+
+Upload these updated files to Samara_AL_ERP_V3_Test:
+- app.js
+- styles.css
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+After deployment, press Ctrl + Shift + R once.

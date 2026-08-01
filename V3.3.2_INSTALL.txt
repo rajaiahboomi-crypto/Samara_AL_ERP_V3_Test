@@ -1,0 +1,27 @@
+SAMARA CARE ERP V3.3.2 — MANUAL WHATSAPP COMMUNICATIONS
+
+Upload:
+- app.js
+- styles.css
+- index.html
+- 404.html
+- service-worker.js
+- VERSION
+- CHANGELOG.md
+
+No Supabase SQL is required.
+
+Manual WhatsApp features:
+- Queue Bill Reminders
+- Queue Appointments due in the next 7 days
+- New Message composer
+- Pending Bill
+- Bill Generated
+- Payment Received
+- Appointment Reminder
+- Admission
+- Discharge
+- Incident Update
+- Custom Message
+
+After deployment, press Ctrl + Shift + R once.
