@@ -1,0 +1,17 @@
+SAMARA CARE ERP V3.1 — INSTALLATION
+
+1. Run Supabase SQL once:
+   supabase/09_V31_CARE_TIMELINE.sql
+
+2. Upload the updated application files to the root of your V3 GitHub repository.
+   You do not need to delete the old files first. GitHub will create a new commit/version.
+
+3. Wait for GitHub Pages deployment, then open the V3 site and press Ctrl+Shift+R once.
+
+New navigation:
+- Nursing & Handover
+- Medication Administration
+- Resident Timeline
+
+Existing Supabase patients, users, photographs, documents, billing and clinical records remain unchanged.
+Twilio may remain inactive; Open WhatsApp continues to work manually.

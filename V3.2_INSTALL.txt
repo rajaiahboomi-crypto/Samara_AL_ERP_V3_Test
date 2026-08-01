@@ -1,0 +1,19 @@
+SAMARA CARE ERP V3.2 INSTALLATION
+
+1. Run once in Supabase SQL Editor:
+   supabase/10_V32_CLINICAL_INTELLIGENCE.sql
+
+2. Upload the updated files to the V3 branch/root.
+   Do not delete existing files first; GitHub will version the replacements.
+
+3. Wait for GitHub Pages deployment and press Ctrl+Shift+R once.
+
+4. Open Clinical Intelligence and test:
+   - Morse Fall Scale
+   - Braden Scale
+   - Pain Assessment
+   - Care Plan
+   - Doctor Visit Note
+   - Nutrition Assessment
+
+Existing users and records remain unchanged.

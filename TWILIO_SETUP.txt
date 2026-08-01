@@ -1,0 +1,40 @@
+SAMARA CARE ERP V2.4 — TWILIO WHATSAPP + SMS SETUP
+
+A. GITHUB UPDATE
+Upload/replace the files in this package on your V2 branch.
+The Twilio credentials are NOT included and must never be added to GitHub.
+
+B. DEPLOY EDGE FUNCTION IN SUPABASE
+1. Supabase Dashboard → Edge Functions → Deploy a new function → Via Editor.
+2. Function name: send-notifications
+3. Replace the editor content with:
+   supabase/functions/send-notifications/index.ts
+4. Deploy.
+
+C. ADD SUPABASE EDGE FUNCTION SECRETS
+Supabase Dashboard → Edge Functions → Secrets.
+Add:
+TWILIO_ACCOUNT_SID = your Twilio Account SID
+TWILIO_AUTH_TOKEN = your Twilio Auth Token
+TWILIO_WHATSAPP_FROM = whatsapp:+17372212163
+TWILIO_SMS_FROM = your SMS-capable Twilio number (leave absent until SMS is activated)
+
+Never paste the SID or Auth Token into GitHub, config.js, app.js, screenshots or chat.
+
+D. TEST WHATSAPP
+1. Keep the recipient joined to the Twilio Sandbox.
+2. In Samara Care → Notifications:
+   - Queue a notification or Queue Payment Reminders.
+   - Click Send Pending Now.
+3. Check Status: Sent / Failed and the error details.
+
+E. SMS
+SMS sending requires an SMS-capable Twilio sender number and, on a trial account,
+the recipient may need to be verified. Indian production SMS may require additional
+regulatory/provider registration.
+
+F. SANDBOX LIMITATIONS
+The Twilio WhatsApp Sandbox is for testing. Test recipients must join the Sandbox.
+Free-form WhatsApp messages are generally limited to the active customer-service
+window. Production messaging requires an approved WhatsApp sender and templates
+where applicable.
