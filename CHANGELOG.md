@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.4.1
+- Fixed abnormal vital alerts to use the complete Critical Alert message template.
+- Clinical WhatsApp alerts now include patient name, observation, severity, time, room/bed and recorded-by staff.
+- Existing editable Communication Centre template is respected.
+- No Supabase SQL changes required.
+
+# Changelog
+
 ## 3.4.0
 - Added Communication Centre.
 - Added editable professional message templates.
