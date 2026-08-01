@@ -310,3 +310,6 @@ textarea{width:100%;border:1px solid #cfdedb;border-radius:12px;padding:12px;fon
  .section-card{border:0!important;padding:0!important}
  .ai-report-v36{border:0!important;max-width:none!important;padding:12mm!important}
 }
+
+/* V3.6.2 visible module error */
+.error-panel-v362{max-width:760px;margin:24px auto;border-left:5px solid #b42318}

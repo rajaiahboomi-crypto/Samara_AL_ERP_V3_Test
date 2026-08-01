@@ -37,7 +37,21 @@ function subscribeRealtime(){if(channel)db.removeChannel(channel);channel=db.cha
 function closeMobileMenu(){document.getElementById('sidebar')?.classList.remove('open');document.getElementById('navOverlay')?.classList.remove('show');document.body.classList.remove('menu-open')}
 function toggleMobileMenu(){const open=document.getElementById('sidebar')?.classList.toggle('open');document.getElementById('navOverlay')?.classList.toggle('show',!!open);document.body.classList.toggle('menu-open',!!open)}
 function go(p){closeMobileMenu();page=p;document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));$(`nav-${p}`)?.classList.add('active');$('pageTitle').textContent=labels[p];$('pageTitleLarge')&&($('pageTitleLarge').textContent=labels[p]);render()}
-function render(){const fn=window[`render_${page}`];$('content').innerHTML=fn?fn():'';bindPageActions()}
+function render(){
+ try{
+  const normalizedPage=String(page||'dashboard').replace(/-/g,'_');
+  const fn=window[`render_${page}`]||window[`render_${normalizedPage}`]||eval(`typeof render_${normalizedPage}==='function'?render_${normalizedPage}:null`);
+  if(!fn){
+   $('content').innerHTML=`<div class="section-card"><h3>Page unavailable</h3><p class="muted">The module "${esc(page)}" could not be loaded.</p></div>`;
+  }else{
+   $('content').innerHTML=fn();
+  }
+  bindPageActions();
+ }catch(error){
+  console.error('Page render failed:',page,error);
+  $('content').innerHTML=`<div class="section-card error-panel-v362"><h3>Unable to load this page</h3><p>${esc(error?.message||String(error))}</p><button class="btn btn-secondary" onclick="location.reload()">Reload</button></div>`;
+ }
+}
 function pname(id){return patients.find(p=>p.id===id)?.full_name||'Unknown patient'}function respectfulPatientNameV343(p){
  if(!p)return '';
  const name=String(p.full_name||'').trim();

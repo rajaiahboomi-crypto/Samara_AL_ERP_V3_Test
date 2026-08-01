@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.6.2
+- Corrected the central page renderer to convert hyphenated routes to underscore renderer names.
+- Fixed Intelligent Reports remaining blank despite the V3.6.1 alias.
+- Added a visible error panel instead of silently showing a blank page.
+- The route correction also protects future hyphenated modules.
+- No Supabase SQL changes required.
+
+# Changelog
+
 ## 3.6.1
 - Fixed blank Intelligent Reports page caused by a route naming mismatch.
 - Patient Daily Report and Daily Operations Report controls now display correctly.
