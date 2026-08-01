@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.6.3
+- Expanded Intelligent Patient Daily Report.
+- Added admission date and length of stay.
+- Added referred-by details and reference contact.
+- Added diagnosis, treating doctor, hospital, emergency contact and guardian details.
+- Added detailed payment and billing information.
+- Added abnormal vital-sign and clinical-alert table with date, time, severity and reading.
+- Added clearer nursing, care, diet, medicine, incident and doctor-review narrative.
+- Added pending-action and follow-up recommendations.
+- No Supabase SQL changes required.
+
+# Changelog
+
 ## 3.6.2
 - Corrected the central page renderer to convert hyphenated routes to underscore renderer names.
 - Fixed Intelligent Reports remaining blank despite the V3.6.1 alias.

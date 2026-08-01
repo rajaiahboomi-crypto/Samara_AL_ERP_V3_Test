@@ -313,3 +313,8 @@ textarea{width:100%;border:1px solid #cfdedb;border-radius:12px;padding:12px;fon
 
 /* V3.6.2 visible module error */
 .error-panel-v362{max-width:760px;margin:24px auto;border-left:5px solid #b42318}
+
+/* V3.6.3 Enhanced patient report */
+.report-normal-v363{background:#f2fbf8;border-left:4px solid #198754;margin:16px 0}
+.ai-report-v36 .table-wrap{margin-bottom:18px}
+.ai-report-v36 h3{color:#075f54}

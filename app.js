@@ -2058,3 +2058,123 @@ bindPageActions=function(){
 
 /* V3.6.1 Intelligent Reports route fix */
 window['render_intelligent-reports'] = render_intelligent_reports;
+
+
+/* ================= V3.6.3 ENHANCED PATIENT INTELLIGENT REPORT ================= */
+function daysBetweenV363(from,to){
+ if(!from)return '-';
+ const a=new Date(`${String(from).slice(0,10)}T00:00:00`);
+ const b=new Date(`${String(to).slice(0,10)}T00:00:00`);
+ return Math.max(0,Math.floor((b-a)/86400000)+1);
+}
+function abnormalVitalsRowsV363(d){
+ const alertMap=d.alerts.map(a=>({
+  parameter:a.parameter||'-',
+  value:`${a.value??'-'} ${a.unit||''}`.trim(),
+  severity:a.severity||'-',
+  time:a.created_at?new Date(a.created_at).toLocaleString('en-IN'):'-',
+  status:a.status||'-'
+ }));
+ if(alertMap.length)return alertMap.map(x=>[x.time,x.parameter,x.value,x.severity,x.status]);
+ const rows=[];
+ d.vitals.forEach(v=>{
+  const time=v.recorded_at?new Date(v.recorded_at).toLocaleString('en-IN'):'-';
+  if(v.alert_level&&v.alert_level!=='Normal'){
+   const items=[];
+   if(v.temperature!=null)items.push(['Temperature',`${v.temperature} ${v.temperature_unit||'°F'}`]);
+   if(v.pulse!=null)items.push(['Pulse',`${v.pulse}/min`]);
+   if(v.respiration!=null)items.push(['Respiration',`${v.respiration}/min`]);
+   if(v.spo2!=null)items.push(['SpO₂',`${v.spo2}%`]);
+   if(v.systolic_bp!=null)items.push(['Blood Pressure',`${v.systolic_bp}/${v.diastolic_bp} mmHg`]);
+   if(v.blood_sugar_value!=null)items.push([v.blood_sugar_type||'Blood Sugar',`${v.blood_sugar_value} mg/dL`]);
+   items.forEach(i=>rows.push([time,i[0],i[1],v.alert_level,'Recorded']));
+  }
+ });
+ return rows;
+}
+function patientFinancialSummaryV363(d,p){
+ const charges=d.billing.filter(x=>x.transaction_type==='Charge');
+ const payments=d.billing.filter(x=>x.transaction_type==='Payment');
+ const discounts=d.billing.filter(x=>x.transaction_type==='Discount');
+ const chargeTotal=charges.reduce((s,x)=>s+Number(x.amount||0),0);
+ const paymentTotal=payments.reduce((s,x)=>s+Number(x.amount||0),0);
+ const discountTotal=discounts.reduce((s,x)=>s+Number(x.amount||0),0);
+ return {
+  rows:[
+   ['Charges raised on selected date',moneyV36(chargeTotal)],
+   ['Payments received on selected date',moneyV36(paymentTotal)],
+   ['Discounts on selected date',moneyV36(discountTotal)],
+   ['Current total outstanding',moneyV36(p.outstanding||0)]
+  ],
+  sentence:`Financial records for the selected date show charges of ${moneyV36(chargeTotal)}, payments received of ${moneyV36(paymentTotal)} and discounts of ${moneyV36(discountTotal)}. The resident's current outstanding balance is ${moneyV36(p.outstanding||0)}.`
+ };
+}
+function patientOverviewRowsV363(p,dateStr){
+ const admission=p.admission_date?new Date(`${String(p.admission_date).slice(0,10)}T00:00:00`).toLocaleDateString('en-IN'):'-';
+ return [
+  ['Patient ID',p.patient_code||'-'],
+  ['Admission Date',admission],
+  ['Length of Stay',p.admission_date?`${daysBetweenV363(p.admission_date,dateStr)} day(s)`:'-'],
+  ['Room / Bed',p.room_bed||'-'],
+  ['Care Level',p.care_level||'-'],
+  ['Diagnosis',p.diagnosis||'-'],
+  ['Referred By',p.referred_by||'-'],
+  ['Reference Contact',p.reference_contact||'-'],
+  ['Treating Doctor',p.treating_doctor||'-'],
+  ['Hospital',p.hospital_name||'-'],
+  ['Emergency Contact',p.emergency_contact||'-'],
+  ['Guardian / Attender',p.guardian_name||'-'],
+  ['Guardian Relationship',p.guardian_relationship||'-']
+ ];
+}
+function patientNarrativeV363(d,dateStr){
+ const p=d.patient||{};
+ const name=typeof respectfulPatientNameV35==='function'?respectfulPatientNameV35(p):p.full_name;
+ const given=d.meds.filter(m=>['Given','Administered'].includes(m.status));
+ const missed=d.meds.filter(m=>['Missed','Withheld','Refused','Pending'].includes(m.status));
+ const fin=patientFinancialSummaryV363(d,p);
+ const para=[];
+ para.push(`${name||'The resident'} was admitted on ${p.admission_date?new Date(`${String(p.admission_date).slice(0,10)}T00:00:00`).toLocaleDateString('en-IN'):'an unspecified date'} and had completed ${p.admission_date?daysBetweenV363(p.admission_date,dateStr):'-'} day(s) of stay as on ${reportDateLabelV36(dateStr)}.`);
+ para.push(`The resident is accommodated in Room/Bed ${p.room_bed||'not specified'} under ${p.care_level||'unspecified'} care. The case was referred by ${p.referred_by||'not specified'}${p.reference_contact?` (contact: ${p.reference_contact})`:''}. Primary diagnosis: ${p.diagnosis||'not specified'}. Treating doctor: ${p.treating_doctor||'not specified'}.`);
+ para.push(latestVitalsSummaryV36(d.vitals));
+ const abnormal=abnormalVitalsRowsV363(d);
+ if(abnormal.length)para.push(`${abnormal.length} abnormal clinical reading${abnormal.length!==1?'s were':' was'} identified during the selected date. These readings require documented review, action taken and follow-up where applicable.`);
+ else para.push('No abnormal vital-sign alert was identified for the selected date.');
+ if(d.care.length)para.push(`${d.care.length} care record${d.care.length!==1?'s were':' was'} documented, covering ${listSentenceV36([...new Set(d.care.map(x=>x.activity||x.care_type).filter(Boolean))])}.`);
+ if(d.nursing.length)para.push(`${d.nursing.length} nursing note${d.nursing.length!==1?'s were':' was'} recorded. Latest note: ${d.nursing[0].note_text||d.nursing[0].remarks||'not specified'}.`);
+ if(d.meals.length)para.push(`${d.meals.length} meal record${d.meals.length!==1?'s were':' was'} entered. Consumption details: ${listSentenceV36(d.meals.map(x=>`${x.meal_type||'Meal'} – ${x.consumption||'not specified'}`))}.`);
+ if(d.meds.length)para.push(`${given.length} medicine dose${given.length!==1?'s were':' was'} recorded as administered. ${missed.length?`${missed.length} medication record${missed.length!==1?'s require':' requires'} follow-up.`:'No missed, withheld, refused or pending medicine was recorded.'}`);
+ if(d.incidents.length)para.push(`${d.incidents.length} incident${d.incidents.length!==1?'s were':' was'} recorded. The latest incident type was ${d.incidents[0].incident_type||'not specified'} with status ${d.incidents[0].status||'not specified'}.`);
+ if(d.doctor.length)para.push(`A doctor review was recorded by ${d.doctor[0].doctor_name||'the treating doctor'}. Findings: ${d.doctor[0].clinical_findings||'not specified'}. Advice: ${d.doctor[0].advice||'not specified'}.`);
+ para.push(fin.sentence);
+ para.push(riskNarrativeV36(d.alerts,d.incidents,missed));
+ return para;
+}
+function patientReportHtmlV36(patientId,dateStr){
+ const d=patientDayDataV36(patientId,dateStr),p=d.patient||{};
+ const abnormalRows=abnormalVitalsRowsV363(d);
+ const financial=patientFinancialSummaryV363(d,p);
+ const dailyRows=[
+  ['Vital-sign entries',d.vitals.length],
+  ['Clinical alerts',d.alerts.length],
+  ['Daily-care records',d.care.length],
+  ['Nursing notes',d.nursing.length],
+  ['Medication records',d.meds.length],
+  ['Meal records',d.meals.length],
+  ['Incidents',d.incidents.length],
+  ['Doctor visits',d.doctor.length],
+  ['Billing entries',d.billing.length],
+  ['Documents uploaded',d.documents.length]
+ ];
+ return `<div class="ai-report-v36">
+  <div class="report-letterhead-v36"><div><h2>Samara Care Assisted Living</h2><b>Intelligent Patient Daily Report</b></div><div><b>${esc(reportDateLabelV36(dateStr))}</b></div></div>
+  <div class="report-patient-v36"><h3>${esc(typeof respectfulPatientNameV35==='function'?respectfulPatientNameV35(p):p.full_name||'Patient')}</h3><span>ID: ${esc(p.patient_code||'-')} · Room/Bed: ${esc(p.room_bed||'-')} · Care Level: ${esc(p.care_level||'-')}</span></div>
+  ${reportTable('Resident Overview',['Particular','Details'],patientOverviewRowsV363(p,dateStr))}
+  <div class="report-narrative-v36"><h3>Intelligent Daily Summary</h3>${patientNarrativeV363(d,dateStr).map(x=>`<p>${esc(x)}</p>`).join('')}</div>
+  ${abnormalRows.length?reportTable('Abnormal Vital Signs / Clinical Alerts',['Date & Time','Parameter','Reading','Severity','Status'],abnormalRows):'<div class="section-card report-normal-v363"><h3>Abnormal Vital Signs / Clinical Alerts</h3><p>No abnormal vital-sign alert was recorded for the selected date.</p></div>'}
+  ${reportTable('Payment and Billing Information',['Particular','Amount'],financial.rows)}
+  ${reportTable('Daily Record Summary',['Category','Count'],dailyRows)}
+  <div class="report-disclaimer-v36"><b>Note:</b> This report is automatically generated from records entered in Samara Care ERP. It supports review and documentation but does not replace clinical judgement or a physician’s assessment.</div>
+ </div>`;
+}
+/* ================= END V3.6.3 ================= */
